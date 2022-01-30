@@ -383,7 +383,7 @@ static void ffprobe_cleanup(int ret)
 
     if (g_default_stdout_no != -1) {
     	fflush(stdout);
-        dup2(fileno(stdout), g_default_stdout_no);
+        //dup2(fileno(stdout), g_default_stdout_no);
     }
 }
 
@@ -4038,7 +4038,7 @@ end:
     
     if (file_path != NULL) {
     	fflush(stdout);
-        dup2(fileno(stdout), g_default_stdout_no);
+        //dup2(fileno(stdout), g_default_stdout_no);
     }
 
     return ret < 0;

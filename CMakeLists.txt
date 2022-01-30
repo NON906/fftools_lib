@@ -17,6 +17,18 @@ if(WIN32)
 
 elseif(APPLE)
 
+  link_directories( mac/lib )
+
+  include_directories( mac/include )
+  include_directories( FFmpeg )
+
+  add_library( ffmpegDll
+               SHARED
+               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c )
+
+  target_link_libraries( ffmpegDll
+                         avcodec avdevice avfilter avformat avutil swresample swscale )
+
 else(WIN32)
 
   link_directories( linux/lib )

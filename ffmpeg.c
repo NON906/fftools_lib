@@ -186,8 +186,11 @@ static THREAD_LOCAL int64_t copy_ts_first_pts = AV_NOPTS_VALUE;
 static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
 
 static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int g_mutex_is_inited = 0;
+static atomic_int g_mutex_is_inited = ATOMIC_VAR_INIT(0);
 static void lock() {
+    while (g_mutex_is_inited == 0) {
+        av_usleep(1);
+    }
     pthread_mutex_lock(&g_mutex);
 }
 static void unlock() {
@@ -750,6 +753,8 @@ static void ffmpeg_cleanup(int ret)
     }
     term_exit();
     ffmpeg_exited = 1;
+
+    pthread_exit(NULL);
 }
 
 void remove_avoptions(AVDictionary **a, AVDictionary *b)
@@ -4986,14 +4991,6 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
 
     add_to_array(&g_running_ids, &g_running_ids_count, id);
 
-    /*
-    g_default_stderr_no = fileno(stderr);
-    if (file_path != NULL) {
-        fflush(stderr);
-        freopen(file_path, "w", stderr);
-    }
-    */
-
     unlock();
 
     if (file_path != NULL) {
@@ -5068,21 +5065,6 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     int ret_val = received_nb_signals ? 255 : main_return_code;
     ffmpeg_cleanup(ret_val);
 
-    lock();
-
-    /*
-    fflush(stderr);
-    if (g_default_stderr_no != fileno(stderr)) {
-        dup2(fileno(stderr), g_default_stderr_no);
-        //setvbuf(stderr,NULL,_IONBF,0);
-    }
-    */
-
-    remove_from_array(g_stop_ids, &g_stop_ids_count, id);
-    remove_from_array(g_running_ids, &g_running_ids_count, id);
-
-    unlock();
-
     return NULL; //ret_val; //main_return_code;
 }
 
@@ -5102,6 +5084,11 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
     pthread_t handle;   
     pthread_create(&handle, NULL, ffmpeg_main_thread, main_args);
     pthread_join(handle, NULL);
+
+    lock();
+    remove_from_array(g_stop_ids, &g_stop_ids_count, id);
+    remove_from_array(g_running_ids, &g_running_ids_count, id);
+    unlock();
 
     return 0;
 }

@@ -185,16 +185,16 @@ static THREAD_LOCAL int64_t copy_ts_first_pts = AV_NOPTS_VALUE;
 //static THREAD_LOCAL int g_default_stderr_no = -1;
 static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
 
-static pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
-static atomic_int g_mutex_is_inited = ATOMIC_VAR_INIT(0);
+static atomic_int g_lock = ATOMIC_VAR_INIT(0);
 static void lock() {
-    while (g_mutex_is_inited == 0) {
+    while (g_lock != 0) {
         av_usleep(1);
     }
-    pthread_mutex_lock(&g_mutex);
+    g_lock = 1;
 }
 static void unlock() {
-    pthread_mutex_unlock(&g_mutex);
+    g_lock = 0;
+    av_usleep(0);
 }
 
 static int *g_stop_ids = NULL;
@@ -234,10 +234,6 @@ static void remove_from_array(int *array, int *size, int val)
 
 DLL_EXPORT int ffmpeg_is_running(int id)
 {
-    if (g_mutex_is_inited == 0) {
-        return 0;
-    }
-
     lock();
 
     int ret = 0;
@@ -771,7 +767,7 @@ void assert_avoptions(AVDictionary *m)
     const AVDictionaryEntry *t;
     if ((t = av_dict_get(m, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
         av_log(NULL, AV_LOG_FATAL, "Option %s not found.\n", t->key);
-        exit_program(1);
+        //exit_program(1);
     }
 }
 
@@ -5070,11 +5066,6 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
 
 DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path)
 {
-    if (g_mutex_is_inited == 0) {
-        pthread_mutex_init(&g_mutex, NULL);
-        g_mutex_is_inited = 1;
-    }
-
     MainArgs *main_args = av_malloc(sizeof(MainArgs));
     main_args->argc = argc;
     main_args->argv = argv;

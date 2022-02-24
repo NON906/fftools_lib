@@ -12,21 +12,20 @@
 #define DLL_EXPORT 
 #endif
 
+#include <stdatomic.h>
 #include "libavformat/url.h"
 
 typedef struct {
     uint8_t **datas;
     size_t data_size;
+    size_t *data_lengths;
     size_t count;
-    size_t position;
-    uint8_t **empty_datas;
-    size_t empty_count;
     const char *uri;
     int flags;
     size_t read_position;
     int clear_count;
-    int is_lock;
     size_t max_count;
+    atomic_flag is_lock;
 } UnitybufStates;
 
 typedef struct {

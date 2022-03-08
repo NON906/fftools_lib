@@ -185,15 +185,14 @@ static THREAD_LOCAL int64_t copy_ts_first_pts = AV_NOPTS_VALUE;
 //static THREAD_LOCAL int g_default_stderr_no = -1;
 static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
 
-static atomic_int g_lock = ATOMIC_VAR_INIT(0);
+static atomic_flag g_lock = ATOMIC_FLAG_INIT;
 static void lock() {
-    while (g_lock != 0) {
+    while (atomic_flag_test_and_set(&g_lock)) {
         av_usleep(1);
     }
-    g_lock = 1;
 }
 static void unlock() {
-    g_lock = 0;
+    atomic_flag_clear(&g_lock);
     av_usleep(0);
 }
 
@@ -4979,7 +4978,6 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     char **argv = main_args->argv;
     int id = main_args->id;
     const char *file_path = main_args->file_path;
-    av_freep(&main_args_void_ptr);
     
     setup_options();
 
@@ -5075,6 +5073,8 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
     pthread_t handle;   
     pthread_create(&handle, NULL, ffmpeg_main_thread, main_args);
     pthread_join(handle, NULL);
+    
+    av_freep(&main_args);
 
     lock();
     remove_from_array(g_stop_ids, &g_stop_ids_count, id);

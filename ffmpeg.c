@@ -185,6 +185,8 @@ static THREAD_LOCAL int64_t copy_ts_first_pts = AV_NOPTS_VALUE;
 //static THREAD_LOCAL int g_default_stderr_no = -1;
 static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
 
+static THREAD_LOCAL int g_id = -1;
+
 static atomic_flag g_lock = ATOMIC_FLAG_INIT;
 static void lock() {
     while (atomic_flag_test_and_set(&g_lock)) {
@@ -233,17 +235,17 @@ static void remove_from_array(int *array, int *size, int val)
 
 DLL_EXPORT int ffmpeg_is_running(int id)
 {
-    lock();
-
     int ret = 0;
-    for (int loop = 0; loop < g_running_ids_count; loop++) {
-        if (g_running_ids[loop] == id) {
-            ret = 1;
-            break;
+    if (g_running_ids_count > 0) {
+        lock();
+        for (int loop = 0; loop < g_running_ids_count; loop++) {
+            if (g_running_ids[loop] == id) {
+                ret = 1;
+                break;
+            }
         }
+        unlock();
     }
-
-    unlock();
 
     return ret;
 }
@@ -253,6 +255,23 @@ DLL_EXPORT void ffmpeg_stop(int id)
     lock();
     add_to_array(&g_stop_ids, &g_stop_ids_count, id);
     unlock();
+}
+
+static int is_stop()
+{
+    int ret = 0;
+    if (g_stop_ids_count > 0) {
+        lock();
+        for (int loop = 0; loop < g_stop_ids_count; loop++) {
+            if (g_stop_ids[loop] == g_id) {
+                ret = 1;
+                break;
+            }
+        }
+        unlock();
+    }
+
+    return ret;
 }
 
 /* sub2video hack:
@@ -4058,6 +4077,10 @@ static void *input_thread(void *arg)
             av_thread_message_queue_set_err_recv(f->in_thread_queue, ret);
             break;
         }
+        if (is_stop() != 0) {
+            av_thread_message_queue_set_err_recv(f->in_thread_queue, AVERROR_EOF);
+            break;
+        }
         queue_pkt = av_packet_alloc();
         if (!queue_pkt) {
             av_packet_unref(pkt);
@@ -4081,6 +4104,11 @@ static void *input_thread(void *arg)
                        av_err2str(ret));
             av_packet_free(&queue_pkt);
             av_thread_message_queue_set_err_recv(f->in_thread_queue, ret);
+            break;
+        }
+        if (is_stop() != 0) {
+            av_packet_free(&queue_pkt);
+            av_thread_message_queue_set_err_recv(f->in_thread_queue, AVERROR_EOF);
             break;
         }
     }
@@ -4721,7 +4749,7 @@ static int transcode_step(void)
 /*
  * The following code is the main loop of the file converter
  */
-static int transcode(int id)
+static int transcode()
 {
     int ret, i;
     AVFormatContext *os;
@@ -4752,20 +4780,9 @@ static int transcode(int id)
         if (stdin_interaction)
             if (check_keyboard_interaction(cur_time) < 0)
                 break;
-
-        if (g_stop_ids_count > 0) {
-            int brkFlag = 0;
-            lock();
-            for (int loop = 0; loop < g_stop_ids_count; loop++) {
-                if (g_stop_ids[loop] == id) {
-                    brkFlag = 1;
-                    break;
-                }
-            }
-            unlock();
-            if (brkFlag != 0) {
-                break;
-            }
+        
+        if (is_stop() != 0) {
+            break;
         }
 
         /* check if there's any stream where output is still needed */
@@ -4782,6 +4799,13 @@ static int transcode(int id)
 
         /* dump report by using the output first video and audio streams */
         print_report(0, timer_start, cur_time);
+    }
+
+    for (i = 0; i < nb_input_streams; i++) {
+        ist = input_streams[i];
+        if (strncmp(input_files[ist->file_index]->ctx->url, "unitybuf:", 9) == 0) {
+            goto fail;
+        }
     }
     
 #if HAVE_THREADS
@@ -4979,6 +5003,8 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     int id = main_args->id;
     const char *file_path = main_args->file_path;
     
+    g_id = id;
+
     setup_options();
 
     lock();
@@ -5038,7 +5064,7 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     }
     
     current_time = ti = get_benchmark_time_stamps();
-    if (transcode(id) < 0)
+    if (transcode() < 0)
         exit_program(1);
     if (do_benchmark) {
         int64_t utime, stime, rtime;

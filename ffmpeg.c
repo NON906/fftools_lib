@@ -5059,6 +5059,12 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     int ret_val = received_nb_signals ? 255 : main_return_code;
     ffmpeg_cleanup(ret_val);
 
+    av_freep(&main_args);
+    lock();
+    remove_from_array(g_stop_ids, &g_stop_ids_count, id);
+    remove_from_array(g_running_ids, &g_running_ids_count, id);
+    unlock();
+
     return NULL; //ret_val; //main_return_code;
 }
 
@@ -5072,14 +5078,24 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
 
     pthread_t handle;   
     pthread_create(&handle, NULL, ffmpeg_main_thread, main_args);
-    pthread_join(handle, NULL);
-    
-    av_freep(&main_args);
 
-    lock();
-    remove_from_array(g_stop_ids, &g_stop_ids_count, id);
-    remove_from_array(g_running_ids, &g_running_ids_count, id);
-    unlock();
+    int brkFlag = 0;
+    while (brkFlag == 0) {
+        av_usleep(10000);
+
+        if (g_stop_ids_count > 0) {
+            lock();
+            for (int loop = 0; loop < g_stop_ids_count; loop++) {
+                if (g_stop_ids[loop] == id) {
+                    brkFlag = 1;
+                    break;
+                }
+            }
+            unlock();
+        }
+    }
+
+    pthread_detach(handle);
 
     return 0;
 }

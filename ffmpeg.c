@@ -200,6 +200,8 @@ static void unlock() {
 
 static int *g_stop_ids = NULL;
 static int g_stop_ids_count = 0;
+static int *g_force_stop_ids = NULL;
+static int g_force_stop_ids_count = 0;
 static int *g_running_ids = NULL;
 static int g_running_ids_count = 0;
 
@@ -257,8 +259,36 @@ DLL_EXPORT void ffmpeg_stop(int id)
     unlock();
 }
 
+DLL_EXPORT void ffmpeg_force_stop(int id)
+{
+    lock();
+    add_to_array(&g_force_stop_ids, &g_force_stop_ids_count, id);
+    unlock();
+}
+
+static int is_force_stop()
+{
+    int ret = 0;
+    if (g_force_stop_ids_count > 0) {
+        lock();
+        for (int loop = 0; loop < g_force_stop_ids_count; loop++) {
+            if (g_force_stop_ids[loop] == g_id) {
+                ret = 1;
+                break;
+            }
+        }
+        unlock();
+    }
+
+    return ret;
+}
+
 static int is_stop()
 {
+    if (is_force_stop() != 0) {
+        return 1;
+    }
+
     int ret = 0;
     if (g_stop_ids_count > 0) {
         lock();
@@ -4077,10 +4107,6 @@ static void *input_thread(void *arg)
             av_thread_message_queue_set_err_recv(f->in_thread_queue, ret);
             break;
         }
-        if (is_stop() != 0) {
-            av_thread_message_queue_set_err_recv(f->in_thread_queue, AVERROR_EOF);
-            break;
-        }
         queue_pkt = av_packet_alloc();
         if (!queue_pkt) {
             av_packet_unref(pkt);
@@ -4104,11 +4130,6 @@ static void *input_thread(void *arg)
                        av_err2str(ret));
             av_packet_free(&queue_pkt);
             av_thread_message_queue_set_err_recv(f->in_thread_queue, ret);
-            break;
-        }
-        if (is_stop() != 0) {
-            av_packet_free(&queue_pkt);
-            av_thread_message_queue_set_err_recv(f->in_thread_queue, AVERROR_EOF);
             break;
         }
     }
@@ -4801,11 +4822,8 @@ static int transcode()
         print_report(0, timer_start, cur_time);
     }
 
-    for (i = 0; i < nb_input_streams; i++) {
-        ist = input_streams[i];
-        if (strncmp(input_files[ist->file_index]->ctx->url, "unitybuf:", 9) == 0) {
-            goto fail;
-        }
+    if (is_force_stop() != 0) {
+        goto fail;
     }
     
 #if HAVE_THREADS
@@ -5104,6 +5122,7 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
 
     lock();
     remove_from_array(g_stop_ids, &g_stop_ids_count, id);
+    remove_from_array(g_force_stop_ids, &g_force_stop_ids_count, id);
     remove_from_array(g_running_ids, &g_running_ids_count, id);
     unlock();
 

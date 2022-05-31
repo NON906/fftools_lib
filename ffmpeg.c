@@ -798,7 +798,9 @@ static void ffmpeg_cleanup(int ret)
     term_exit();
     ffmpeg_exited = 1;
 
-    pthread_exit(NULL);
+    int *ret_ptr = av_malloc(sizeof(int));
+    *ret_ptr = ret;
+    pthread_exit(ret_ptr);
 }
 
 void remove_avoptions(AVDictionary **a, AVDictionary *b)
@@ -5103,7 +5105,9 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     int ret_val = received_nb_signals ? 255 : main_return_code;
     ffmpeg_cleanup(ret_val);
 
-    return NULL; //ret_val; //main_return_code;
+    int *ret_ptr = av_malloc(sizeof(int));
+    *ret_ptr = ret_val;
+    return ret_ptr;
 }
 
 DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path)
@@ -5116,7 +5120,8 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
 
     pthread_t handle;   
     pthread_create(&handle, NULL, ffmpeg_main_thread, main_args);
-    pthread_join(handle, NULL);
+    void *ret_ptr = NULL;
+    pthread_join(handle, &ret_ptr);
     
     av_freep(&main_args);
 
@@ -5126,5 +5131,8 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
     remove_from_array(g_running_ids, &g_running_ids_count, id);
     unlock();
 
-    return 0;
+    int ret = *(int *)ret_ptr;
+    av_freep(&ret_ptr);
+
+    return ret;
 }

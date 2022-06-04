@@ -209,7 +209,7 @@ static void add_to_array(int **array, int *size, int val)
 {
     int *new_array = av_malloc(sizeof(int) * (*size + 1));
     for (int loop = 0; loop < *size; loop++) {
-        new_array[loop] = *array[loop];
+        new_array[loop] = (*array)[loop];
     }
     new_array[*size] = val;
     if (*array != NULL) {

@@ -35,6 +35,7 @@ else(WIN32)
 
   link_directories( linux/lib )
   link_directories( /usr/lib )
+  link_directories( /usr/lib/x86_64-linux-gnu )
 
   include_directories( FFmpeg )
   include_directories( linux/include )
@@ -47,8 +48,9 @@ else(WIN32)
   target_link_libraries( ffmpegDll
                          avdevice avfilter avformat swresample swscale avcodec avutil
                          aom gif gmp gnutls gnutlsxx hogweed lilv-0 ltdl nettle ogg openh264 opus pcre pcrecpp pcreposix serd-0 sord-0 sratom-0
-                         theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webp webpdecoder webpdemux webpmux yasm z 
-                         sndio Xv dl mvec m c )
+                         theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webpdecoder webpdemux webpmux webp yasm z 
+                         sndio Xv stdc++ dl mvec m c
+                         xcb-shm xcb )
 
   find_package(ALSA REQUIRED)
   if (ALSA_FOUND)

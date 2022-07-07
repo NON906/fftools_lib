@@ -535,6 +535,9 @@ static BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
 
 void term_init(void)
 {
+    signal(SIGPIPE, SIG_IGN);
+    return;
+
 #if defined __linux__
     struct sigaction action = {0};
     action.sa_handler = sigterm_handler;

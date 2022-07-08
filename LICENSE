@@ -1,0 +1,58 @@
+This projects is governed by the LGPLv2.1; however, the following components are governed by the licenses indicated below:
+
+ffmpeg: LGPLv2.1
+Copyright (c) 2000-2021 the FFmpeg developers
+
+openh264: BSD 2-Clause
+Copyright (c) 2013, Cisco Systems
+
+libvpx: BSD 3-Clause
+Copyright (c) 2010, The WebM Project authors. All rights reserved.
+
+aom: BSD 2-Clause
+Copyright (c) 2016, Alliance for Open Media. All rights reserved.
+
+opus: BSD 3-Clause
+Copyright 2001-2011 Xiph.Org, Skype Limited, Octasic,
+                    Jean-Marc Valin, Timothy B. Terriberry,
+                    CSIRO, Gregory Maxwell, Mark Borgerding,
+                    Erik de Castro Lopo
+
+vorbis: BSD 3-Clause
+Copyright (c) 2002-2020 Xiph.org Foundation
+
+theora: BSD 3-Clause
+Copyright (C) 2002-2009 Xiph.org Foundation
+
+libwebp: BSD 3-Clause
+Copyright (c) 2010, Google Inc. All rights reserved.
+
+giflib: MIT License
+The GIFLIB distribution is Copyright (c) 1997  Eric S. Raymond
+
+libjpeg_turbo: BSD 3-Clause
+Copyright (C)2009-2020 D. R. Commander.  All Rights Reserved.
+Copyright (C)2015 Viktor Szathmáry.  All Rights Reserved.
+
+libogg: BSD 3-Clause
+Copyright (c) 2002, Xiph.org Foundation
+
+libpng: PNG Reference Library License version 2
+ * Copyright (c) 1995-2019 The PNG Reference Library Authors.
+ * Copyright (c) 2018-2019 Cosmin Truta.
+ * Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson.
+ * Copyright (c) 1996-1997 Andreas Dilger.
+ * Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.
+
+libtiff: libtiff License
+Copyright (c) 1988-1997 Sam Leffler
+Copyright (c) 1991-1997 Silicon Graphics, Inc.
+
+gmp: LGPLv3
+Copyright 1991, 1996, 1999, 2000, 2007 Free Software Foundation, Inc.
+
+nettle: LGPLv3
+Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+
+gnutls: LGPLv2.1
+Copyright (C) 1991, 1999 Free Software Foundation, Inc.

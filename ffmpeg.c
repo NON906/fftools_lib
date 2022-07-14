@@ -535,7 +535,9 @@ static BOOL WINAPI CtrlHandler(DWORD fdwCtrlType)
 
 void term_init(void)
 {
+#ifdef SIGPIPE
     signal(SIGPIPE, SIG_IGN);
+#endif
     return;
 
 #if defined __linux__

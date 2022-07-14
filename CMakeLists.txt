@@ -47,8 +47,8 @@ else(WIN32)
 
   target_link_libraries( ffmpegDll
                          avdevice avfilter avformat swresample swscale avcodec avutil
-                         aom gif gmp gnutls gnutlsxx hogweed lilv-0 ltdl nettle ogg openh264 opus pcre pcrecpp pcreposix serd-0 sord-0 sratom-0
-                         theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webpdecoder webpdemux webpmux webp yasm z 
+                         mp3lame aom gif gmp gnutls gnutlsxx hogweed lilv-0 ltdl nettle ogg openh264 opus pcre pcrecpp pcreposix serd-0 sord-0 sratom-0
+                         theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webpdecoder webpdemux webpmux webp yasm z
                          sndio Xv stdc++ dl mvec m c
                          xcb-shm xcb )
 

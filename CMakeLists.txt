@@ -9,25 +9,26 @@ if(WIN32)
 
   add_library( ffmpegDll
                SHARED
-               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c )
+               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c 
+               ffmpeg_mux.c opt_common.c )
 
   target_link_libraries( ffmpegDll
                          avcodec-59 avdevice-59 avfilter-8 avformat-59 avutil-57 swresample-4 swscale-6
                          -static-libgcc -static-libstdc++)
 
-elseif(APPLE)
-
-  link_directories( mac/lib )
-
-  include_directories( mac/include )
-  include_directories( FFmpeg )
-
-  add_library( ffmpegDll
-               SHARED
-               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c )
-
-  target_link_libraries( ffmpegDll
-                         avcodec avdevice avfilter avformat avutil swresample swscale )
+#elseif(APPLE)
+#
+#  link_directories( mac/lib )
+#
+#  include_directories( mac/include )
+#  include_directories( FFmpeg )
+#
+#  add_library( ffmpegDll
+#               SHARED
+#               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c )
+#
+#  target_link_libraries( ffmpegDll
+#                         avcodec avdevice avfilter avformat avutil swresample swscale )
 
 else(WIN32)
 
@@ -43,7 +44,8 @@ else(WIN32)
 
   add_library( ffmpegDll
                SHARED
-               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c unitybuf2.c )
+               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c unitybuf2.c
+               ffmpeg_mux.c opt_common.c )
 
   target_link_libraries( ffmpegDll
                          avdevice avfilter avformat swresample swscale avcodec avutil

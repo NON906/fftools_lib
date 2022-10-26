@@ -407,7 +407,7 @@ static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
 static THREAD_LOCAL int g_id = -1;
 
 static THREAD_LOCAL uint8_t *unity_data = NULL;
-static THREAD_LOCAL int unity_filped;
+static int unity_filped;
 
 static atomic_flag g_lock = ATOMIC_FLAG_INIT;
 static void lock() {
@@ -510,47 +510,6 @@ static void unity_ffplay_exit_in_running(int ret)
     }
 
     unity_ffplay_exit(ret);
-}
-
-static int unity_ffplay_upload_texture(AVFrame *frame, struct SwsContext **img_convert_ctx) {
-    int ret = 0;
-    if (frame->format != AV_PIX_FMT_BGRA) {
-        *img_convert_ctx = sws_getCachedContext(*img_convert_ctx,
-            frame->width, frame->height, frame->format, frame->width, frame->height,
-            AV_PIX_FMT_BGRA, sws_flags, NULL, NULL, NULL);
-        if (*img_convert_ctx != NULL) {
-            uint8_t *pixels[4] = { unity_data };
-            int pitch[4] = { 4 * frame->width };
-            sws_scale(*img_convert_ctx, (const uint8_t * const *)frame->data, frame->linesize,
-                        0, frame->height, pixels, pitch);
-        } else {
-            av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");
-            ret = -1;
-        }
-    }
-    return ret;
-}
-
-static Frame *frame_queue_peek_last(FrameQueue *f);
-
-static void unity_ffplay_video_image_display(VideoState *is)
-{
-    Frame *vp;
- 
-    vp = frame_queue_peek_last(&is->pictq);
-
-    if (!vp->uploaded) {
-        if (unity_ffplay_upload_texture(vp->frame, &is->img_convert_ctx) < 0) {
-            return;
-        }
-        vp->uploaded = 1;
-        vp->flip_v = vp->frame->linesize[0] < 0;
-        unity_filped = vp->flip_v;
-    }
-}
-
-DLL_EXPORT void unity_ffplay_set_buffer(uint8_t *buffer) {
-    unity_data = buffer;
 }
 
 DLL_EXPORT int unity_ffplay_get_filped() {
@@ -1493,15 +1452,15 @@ static int video_open(VideoState *is)
     w = screen_width ? screen_width : default_width;
     h = screen_height ? screen_height : default_height;
 
-    if (!window_title)
-        window_title = input_filename;
-    SDL_SetWindowTitle(window, window_title);
+    //if (!window_title)
+    //    window_title = input_filename;
+    //SDL_SetWindowTitle(window, window_title);
 
     SDL_SetWindowSize(window, w, h);
-    SDL_SetWindowPosition(window, screen_left, screen_top);
-    if (is_full_screen)
-        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
-    SDL_ShowWindow(window);
+    //SDL_SetWindowPosition(window, screen_left, screen_top);
+    //if (is_full_screen)
+    //    SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    //SDL_ShowWindow(window);
 
     is->width  = w;
     is->height = h;
@@ -1521,6 +1480,7 @@ static void video_display(VideoState *is)
         video_audio_display(is);
     else if (is->video_st)
         video_image_display(is);
+    SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ABGR8888, unity_data, is->width * 4);
     SDL_RenderPresent(renderer);
 }
 
@@ -1743,7 +1703,7 @@ static void video_refresh(void *opaque, double *remaining_time)
         *remaining_time = FFMIN(*remaining_time, is->last_vis_time + rdftspeed - time);
     }
 
-    if (!display_disable && is->subtitle_st) {
+    if (is->video_st) {
 retry:
         if (frame_queue_nb_remaining(&is->pictq) == 0) {
             // nothing to do, no picture to display in the queue
@@ -1795,7 +1755,7 @@ retry:
                 }
             }
 
-            if (is->subtitle_st) {
+            if (!display_disable && is->subtitle_st) {
                 while (frame_queue_nb_remaining(&is->subpq) > 0) {
                     sp = frame_queue_peek(&is->subpq);
 
@@ -1837,12 +1797,8 @@ retry:
         }
 display:
         /* display picture */
-        if (!display_disable) {
-            if (is->force_refresh && is->show_mode == SHOW_MODE_VIDEO && is->pictq.rindex_shown)
-                video_display(is);
-        } else if (is->pictq.rindex_shown) {
-            unity_ffplay_video_image_display(is);
-        }
+        if (!display_disable && is->force_refresh && is->show_mode == SHOW_MODE_VIDEO && is->pictq.rindex_shown)
+            video_display(is);
     }
     is->force_refresh = 0;
     if (show_status) {
@@ -3839,6 +3795,7 @@ typedef struct {
     char **argv;
     int id;
     const char *file_path;
+    uint8_t *video_buffer;
 } MainArgs;
 
 /* Called from the main */
@@ -3853,6 +3810,7 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     char **argv = main_args->argv;
     int id = main_args->id;
     const char *file_path = main_args->file_path;
+    unity_data = main_args->video_buffer;
 
     g_id = id;
     unity_ffplay_setup_options();
@@ -3886,8 +3844,6 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
 
     if (display_disable) {
         video_disable = 1;
-    } else {
-        display_disable = 1;
     }
     flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER;
     if (audio_disable)
@@ -3911,6 +3867,7 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
 
     if (!display_disable) {
         int flags = SDL_WINDOW_HIDDEN;
+#if 0
         if (alwaysontop)
 #if SDL_VERSION_ATLEAST(2,0,5)
             flags |= SDL_WINDOW_ALWAYS_ON_TOP;
@@ -3921,6 +3878,7 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
             flags |= SDL_WINDOW_BORDERLESS;
         else
             flags |= SDL_WINDOW_RESIZABLE;
+#endif
 
 #ifdef SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR
         SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
@@ -3959,13 +3917,14 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     return ret_ptr;
 }
 
-DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path)
+DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path, uint8_t *video_buffer)
 {
     MainArgs *main_args = av_malloc(sizeof(MainArgs));
     main_args->argc = argc;
     main_args->argv = argv;
     main_args->id = id;
     main_args->file_path = file_path;
+    main_args->video_buffer = video_buffer;
 
     pthread_t handle;
     pthread_create(&handle, NULL, unity_ffplay_main_thread, main_args);

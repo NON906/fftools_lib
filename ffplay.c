@@ -407,7 +407,9 @@ static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
 static THREAD_LOCAL int g_id = -1;
 
 static THREAD_LOCAL uint8_t *unity_data = NULL;
-static int unity_filped;
+static int unity_filped = -1;
+static int unity_audio_channels = -1;
+static int unity_audio_sample_rate = -1;
 
 static atomic_flag g_lock = ATOMIC_FLAG_INIT;
 static void lock() {
@@ -453,6 +455,61 @@ static void remove_from_array(int *array, int *size, int val)
         }
     }
     *size -= del;
+}
+
+typedef struct VideoStatePair {
+    int id;
+    VideoState *is;
+} VideoStatePair;
+
+static VideoStatePair *g_is_pair_array = NULL;
+static int g_is_pair_array_count = 0;
+
+static void add_is_pair(int id, VideoState *is)
+{
+    VideoStatePair *new_array = av_malloc(sizeof(VideoStatePair) * (g_is_pair_array_count + 1));
+    for (int loop = 0; loop < g_is_pair_array_count; loop++) {
+        new_array[loop] = g_is_pair_array[loop];
+    }
+    new_array[g_is_pair_array_count].id = id;
+    new_array[g_is_pair_array_count].is = is;
+    if (g_is_pair_array != NULL) {
+        av_freep(g_is_pair_array);
+    }
+    g_is_pair_array = new_array;
+    g_is_pair_array_count++;
+}
+
+static VideoState *get_is(int id)
+{
+    for (int loop = 0; loop < g_is_pair_array_count; loop++) {
+        if (g_is_pair_array[loop].id == id) {
+            return g_is_pair_array[loop].is;
+        }
+    }
+    return NULL;
+}
+
+static void remove_is_pair(int id)
+{
+    int del_pos = -1;
+    for (int loop = 0; loop < g_is_pair_array_count; loop++) {
+        if (g_is_pair_array[loop].id == id) {
+            del_pos = loop;
+        }
+    }
+    if (del_pos < 0) {
+        return;
+    }
+
+    int pos = 0;
+    for (int loop = 0; loop < g_is_pair_array_count; loop++) {
+        if (pos != loop) {
+            g_is_pair_array[pos] = g_is_pair_array[loop];
+            pos++;
+        }
+    }
+    g_is_pair_array_count--;
 }
 
 DLL_EXPORT int ffplay_is_running(int id)
@@ -512,8 +569,16 @@ static void unity_ffplay_exit_in_running(int ret)
     unity_ffplay_exit(ret);
 }
 
-DLL_EXPORT int unity_ffplay_get_filped() {
+DLL_EXPORT int ffplay_get_filped() {
     return unity_filped;
+}
+
+DLL_EXPORT int ffplay_get_audio_channels() {
+    return unity_audio_channels;
+}
+
+DLL_EXPORT int ffplay_get_audio_sample_rate() {
+    return unity_audio_sample_rate;
 }
 
 #if CONFIG_AVFILTER
@@ -2632,6 +2697,7 @@ static int audio_open(void *opaque, AVChannelLayout *wanted_channel_layout, int 
     wanted_spec.samples = FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC));
     wanted_spec.callback = sdl_audio_callback;
     wanted_spec.userdata = opaque;
+#if 0
     while (!(audio_dev = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE))) {
         av_log(NULL, AV_LOG_WARNING, "SDL_OpenAudio (%d channels, %d Hz): %s\n",
                wanted_spec.channels, wanted_spec.freq, SDL_GetError());
@@ -2661,6 +2727,11 @@ static int audio_open(void *opaque, AVChannelLayout *wanted_channel_layout, int 
             return -1;
         }
     }
+#endif
+    spec = wanted_spec;
+
+    unity_audio_channels = wanted_nb_channels;
+    unity_audio_sample_rate = wanted_sample_rate;
 
     audio_hw_params->fmt = AV_SAMPLE_FMT_S16;
     audio_hw_params->freq = spec.freq;
@@ -3908,6 +3979,10 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
         do_exit(NULL);
     }
 
+    lock();
+    add_is_pair(g_id, is);
+    unlock();
+
     register_exit(unity_ffplay_exit_in_running);
 
     event_loop(is);
@@ -3936,10 +4011,19 @@ DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path
     lock();
     remove_from_array(g_stop_ids, &g_stop_ids_count, id);
     remove_from_array(g_running_ids, &g_running_ids_count, id);
+    remove_is_pair(id);
     unlock();
 
     int ret = *(int *)ret_ptr;
     av_freep(&ret_ptr);
 
     return ret;
+}
+
+DLL_EXPORT void ffplay_get_audio(int id, short *stream, int len)
+{
+    void *is = get_is(id);
+    if (is != NULL) {
+        sdl_audio_callback(is, (Uint8 *)stream, len);
+    }
 }

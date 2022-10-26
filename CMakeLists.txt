@@ -3,17 +3,20 @@ cmake_minimum_required(VERSION 3.6.0)
 if(WIN32)
 
   link_directories( win )
+  link_directories( win/SDL2-2.24.1/lib/x64 )
 
   include_directories( win/include )
+  include_directories( win/SDL2-2.24.1/include )
   include_directories( FFmpeg )
 
   add_library( ffmpegDll
                SHARED
-               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c /*ffplay.c*/ ffprobe.c 
+               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c ffplay.c ffprobe.c 
                ffmpeg_mux.c opt_common.c )
 
   target_link_libraries( ffmpegDll
                          avcodec-59 avdevice-59 avfilter-8 avformat-59 avutil-57 swresample-4 swscale-6
+                         SDL2
                          -static-libgcc -static-libstdc++)
 
 #elseif(APPLE)

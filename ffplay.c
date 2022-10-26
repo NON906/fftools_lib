@@ -23,6 +23,16 @@
  * simple media player based on the FFmpeg libraries
  */
 
+#ifdef _WIN32
+#define DLL_EXPORT __declspec(dllexport)
+#else
+#define DLL_EXPORT 
+#endif
+
+#define THREAD_LOCAL __thread
+#include <stdatomic.h>
+#include "libavutil/thread.h"
+
 #include "config.h"
 #include "config_components.h"
 #include <inttypes.h>
@@ -62,8 +72,8 @@
 #include "cmdutils.h"
 #include "opt_common.h"
 
-const char program_name[] = "ffplay";
-const int program_birth_year = 2003;
+//const char program_name[] = "ffplay";
+//const int program_birth_year = 2003;
 
 #define MAX_QUEUE_SIZE (15 * 1024 * 1024)
 #define MIN_FRAMES 25
@@ -307,67 +317,67 @@ typedef struct VideoState {
 } VideoState;
 
 /* options specified by the user */
-static const AVInputFormat *file_iformat;
-static const char *input_filename;
-static const char *window_title;
-static int default_width  = 640;
-static int default_height = 480;
-static int screen_width  = 0;
-static int screen_height = 0;
-static int screen_left = SDL_WINDOWPOS_CENTERED;
-static int screen_top = SDL_WINDOWPOS_CENTERED;
-static int audio_disable;
-static int video_disable;
-static int subtitle_disable;
-static const char* wanted_stream_spec[AVMEDIA_TYPE_NB] = {0};
-static int seek_by_bytes = -1;
-static float seek_interval = 10;
-static int display_disable;
-static int borderless;
-static int alwaysontop;
-static int startup_volume = 100;
-static int show_status = -1;
-static int av_sync_type = AV_SYNC_AUDIO_MASTER;
-static int64_t start_time = AV_NOPTS_VALUE;
-static int64_t duration = AV_NOPTS_VALUE;
-static int fast = 0;
-static int genpts = 0;
-static int lowres = 0;
-static int decoder_reorder_pts = -1;
-static int autoexit;
-static int exit_on_keydown;
-static int exit_on_mousedown;
-static int loop = 1;
-static int framedrop = -1;
-static int infinite_buffer = -1;
-static enum ShowMode show_mode = SHOW_MODE_NONE;
-static const char *audio_codec_name;
-static const char *subtitle_codec_name;
-static const char *video_codec_name;
+static THREAD_LOCAL const AVInputFormat *file_iformat;
+static THREAD_LOCAL const char *input_filename;
+static THREAD_LOCAL const char *window_title;
+static THREAD_LOCAL int default_width  = 640;
+static THREAD_LOCAL int default_height = 480;
+static THREAD_LOCAL int screen_width  = 0;
+static THREAD_LOCAL int screen_height = 0;
+static THREAD_LOCAL int screen_left = SDL_WINDOWPOS_CENTERED;
+static THREAD_LOCAL int screen_top = SDL_WINDOWPOS_CENTERED;
+static THREAD_LOCAL int audio_disable;
+static THREAD_LOCAL int video_disable;
+static THREAD_LOCAL int subtitle_disable;
+static THREAD_LOCAL const char* wanted_stream_spec[AVMEDIA_TYPE_NB] = {0};
+static THREAD_LOCAL int seek_by_bytes = -1;
+static THREAD_LOCAL float seek_interval = 10;
+static THREAD_LOCAL int display_disable;
+static THREAD_LOCAL int borderless;
+static THREAD_LOCAL int alwaysontop;
+static THREAD_LOCAL int startup_volume = 100;
+static THREAD_LOCAL int show_status = -1;
+static THREAD_LOCAL int av_sync_type = AV_SYNC_AUDIO_MASTER;
+static THREAD_LOCAL int64_t start_time = AV_NOPTS_VALUE;
+static THREAD_LOCAL int64_t duration = AV_NOPTS_VALUE;
+static THREAD_LOCAL int fast = 0;
+static THREAD_LOCAL int genpts = 0;
+static THREAD_LOCAL int lowres = 0;
+static THREAD_LOCAL int decoder_reorder_pts = -1;
+static THREAD_LOCAL int autoexit;
+static THREAD_LOCAL int exit_on_keydown;
+static THREAD_LOCAL int exit_on_mousedown;
+static THREAD_LOCAL int loop = 1;
+static THREAD_LOCAL int framedrop = -1;
+static THREAD_LOCAL int infinite_buffer = -1;
+static THREAD_LOCAL enum ShowMode show_mode = SHOW_MODE_NONE;
+static THREAD_LOCAL const char *audio_codec_name;
+static THREAD_LOCAL const char *subtitle_codec_name;
+static THREAD_LOCAL const char *video_codec_name;
 double rdftspeed = 0.02;
-static int64_t cursor_last_shown;
-static int cursor_hidden = 0;
+static THREAD_LOCAL int64_t cursor_last_shown;
+static THREAD_LOCAL int cursor_hidden = 0;
 #if CONFIG_AVFILTER
-static const char **vfilters_list = NULL;
-static int nb_vfilters = 0;
-static char *afilters = NULL;
+static THREAD_LOCAL const char **vfilters_list = NULL;
+static THREAD_LOCAL int nb_vfilters = 0;
+static THREAD_LOCAL char *afilters = NULL;
 #endif
-static int autorotate = 1;
-static int find_stream_info = 1;
-static int filter_nbthreads = 0;
+static THREAD_LOCAL int autorotate = 1;
+static THREAD_LOCAL int find_stream_info = 1;
+static THREAD_LOCAL int filter_nbthreads = 0;
 
 /* current context */
-static int is_full_screen;
-static int64_t audio_callback_time;
+static THREAD_LOCAL int is_full_screen;
+static THREAD_LOCAL int64_t audio_callback_time;
 
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
-static SDL_Window *window;
-static SDL_Renderer *renderer;
-static SDL_RendererInfo renderer_info = {0};
-static SDL_AudioDeviceID audio_dev;
+static THREAD_LOCAL SDL_Window *window;
+static THREAD_LOCAL SDL_Renderer *renderer;
+static THREAD_LOCAL SDL_RendererInfo renderer_info = {0};
+static THREAD_LOCAL SDL_AudioDeviceID audio_dev;
 
-static const struct TextureFormatEntry {
+static THREAD_LOCAL const struct TextureFormatEntry {
     enum AVPixelFormat format;
     int texture_fmt;
 } sdl_texture_format_map[] = {
@@ -392,6 +402,160 @@ static const struct TextureFormatEntry {
     { AV_PIX_FMT_UYVY422,        SDL_PIXELFORMAT_UYVY },
     { AV_PIX_FMT_NONE,           SDL_PIXELFORMAT_UNKNOWN },
 };
+
+static THREAD_LOCAL FILE *g_log_output_file_pointer = NULL;
+static THREAD_LOCAL int g_id = -1;
+
+static THREAD_LOCAL uint8_t *unity_data = NULL;
+static THREAD_LOCAL int unity_filped;
+
+static atomic_flag g_lock = ATOMIC_FLAG_INIT;
+static void lock() {
+    while (atomic_flag_test_and_set(&g_lock)) {
+        av_usleep(1);
+    }
+}
+static void unlock() {
+    atomic_flag_clear(&g_lock);
+    av_usleep(0);
+}
+
+static int *g_stop_ids = NULL;
+static int g_stop_ids_count = 0;
+static int *g_running_ids = NULL;
+static int g_running_ids_count = 0;
+
+static void add_to_array(int **array, int *size, int val)
+{
+    int *new_array = av_malloc(sizeof(int) * (*size + 1));
+    for (int loop = 0; loop < *size; loop++) {
+        new_array[loop] = (*array)[loop];
+    }
+    new_array[*size] = val;
+    if (*array != NULL) {
+        av_freep(array);
+    }
+    *array = new_array;
+    (*size)++;
+}
+
+static void remove_from_array(int *array, int *size, int val)
+{
+    int pos = 0;
+    int del = 0;
+    for (int loop = 0; loop < *size; loop++) {
+        if (val != array[loop]) {
+            array[pos] = array[loop];
+            pos++;
+        }
+        else {
+            del++;
+        }
+    }
+    *size -= del;
+}
+
+DLL_EXPORT int ffplay_is_running(int id)
+{
+    int ret = 0;
+    if (g_running_ids_count > 0) {
+        lock();
+        for (int loop = 0; loop < g_running_ids_count; loop++) {
+            if (g_running_ids[loop] == id) {
+                ret = 1;
+                break;
+            }
+        }
+        unlock();
+    }
+
+    return ret;
+}
+
+DLL_EXPORT void ffplay_stop(int id)
+{
+    lock();
+    add_to_array(&g_stop_ids, &g_stop_ids_count, id);
+    unlock();
+}
+
+static int is_stop()
+{
+    int ret = 0;
+    if (g_stop_ids_count > 0) {
+        lock();
+        for (int loop = 0; loop < g_stop_ids_count; loop++) {
+            if (g_stop_ids[loop] == g_id) {
+                ret = 1;
+                break;
+            }
+        }
+        unlock();
+    }
+
+    return ret;
+}
+
+static void unity_ffplay_exit(int ret)
+{
+    int *ret_ptr = av_malloc(sizeof(int));
+    *ret_ptr = ret;
+    pthread_exit(ret_ptr);
+}
+
+static void unity_ffplay_exit_in_running(int ret)
+{
+    if (is_stop() != 0) {
+        ffplay_stop(g_id);
+    }
+
+    unity_ffplay_exit(ret);
+}
+
+static int unity_ffplay_upload_texture(AVFrame *frame, struct SwsContext **img_convert_ctx) {
+    int ret = 0;
+    if (frame->format != AV_PIX_FMT_BGRA) {
+        *img_convert_ctx = sws_getCachedContext(*img_convert_ctx,
+            frame->width, frame->height, frame->format, frame->width, frame->height,
+            AV_PIX_FMT_BGRA, sws_flags, NULL, NULL, NULL);
+        if (*img_convert_ctx != NULL) {
+            uint8_t *pixels[4] = { unity_data };
+            int pitch[4] = { 4 * frame->width };
+            sws_scale(*img_convert_ctx, (const uint8_t * const *)frame->data, frame->linesize,
+                        0, frame->height, pixels, pitch);
+        } else {
+            av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");
+            ret = -1;
+        }
+    }
+    return ret;
+}
+
+static Frame *frame_queue_peek_last(FrameQueue *f);
+
+static void unity_ffplay_video_image_display(VideoState *is)
+{
+    Frame *vp;
+ 
+    vp = frame_queue_peek_last(&is->pictq);
+
+    if (!vp->uploaded) {
+        if (unity_ffplay_upload_texture(vp->frame, &is->img_convert_ctx) < 0) {
+            return;
+        }
+        vp->uploaded = 1;
+        vp->flip_v = vp->frame->linesize[0] < 0;
+        unity_filped = vp->flip_v;
+    }
+}
+
+DLL_EXPORT void unity_ffplay_set_buffer(uint8_t *buffer) {
+    unity_data = buffer;
+}
+
+DLL_EXPORT int unity_ffplay_get_filped() {
+    return unity_filped;
+}
 
 #if CONFIG_AVFILTER
 static int opt_add_vfilter(void *optctx, const char *opt, const char *arg)
@@ -1579,7 +1743,7 @@ static void video_refresh(void *opaque, double *remaining_time)
         *remaining_time = FFMIN(*remaining_time, is->last_vis_time + rdftspeed - time);
     }
 
-    if (is->video_st) {
+    if (!display_disable && is->subtitle_st) {
 retry:
         if (frame_queue_nb_remaining(&is->pictq) == 0) {
             // nothing to do, no picture to display in the queue
@@ -1673,8 +1837,12 @@ retry:
         }
 display:
         /* display picture */
-        if (!display_disable && is->force_refresh && is->show_mode == SHOW_MODE_VIDEO && is->pictq.rindex_shown)
-            video_display(is);
+        if (!display_disable) {
+            if (is->force_refresh && is->show_mode == SHOW_MODE_VIDEO && is->pictq.rindex_shown)
+                video_display(is);
+        } else if (is->pictq.rindex_shown) {
+            unity_ffplay_video_image_display(is);
+        }
     }
     is->force_refresh = 0;
     if (show_status) {
@@ -3270,7 +3438,7 @@ static void event_loop(VideoState *cur_stream)
     SDL_Event event;
     double incr, pos, frac;
 
-    for (;;) {
+    while (is_stop() == 0) {
         double x;
         refresh_loop_wait_event(cur_stream, &event);
         switch (event.type) {
@@ -3559,7 +3727,13 @@ static int opt_codec(void *optctx, const char *opt, const char *arg)
 
 static int dummy;
 
-static const OptionDef options[] = {
+static THREAD_LOCAL OptionDef *options = NULL;
+static void unity_ffplay_setup_options() {
+    if (options != NULL) {
+        return;
+    }
+
+    OptionDef new_options[] = {
     CMDUTILS_COMMON_OPTIONS
     { "x", HAS_ARG, { .func_arg = opt_width }, "force displayed width", "width" },
     { "y", HAS_ARG, { .func_arg = opt_height }, "force displayed height", "height" },
@@ -3610,7 +3784,11 @@ static const OptionDef options[] = {
         "read and decode the streams to fill missing information with heuristics" },
     { "filter_threads", HAS_ARG | OPT_INT | OPT_EXPERT, { &filter_nbthreads }, "number of filter threads per graph" },
     { NULL, },
-};
+    };
+
+    options = av_malloc(sizeof(new_options));
+    memcpy(options, new_options, sizeof(new_options));
+}
 
 static void show_usage(void)
 {
@@ -3619,6 +3797,7 @@ static void show_usage(void)
     av_log(NULL, AV_LOG_INFO, "\n");
 }
 
+#if 0
 void show_help_default(const char *opt, const char *arg)
 {
     av_log_set_callback(log_callback_help);
@@ -3653,12 +3832,31 @@ void show_help_default(const char *opt, const char *arg)
            "left double-click   toggle full screen\n"
            );
 }
+#endif
+
+typedef struct {
+    int argc;
+    char **argv;
+    int id;
+    const char *file_path;
+} MainArgs;
 
 /* Called from the main */
-int main(int argc, char **argv)
+//int main(int argc, char **argv)
+static void *unity_ffplay_main_thread(void *main_args_void_ptr)
 {
     int flags;
     VideoState *is;
+
+    MainArgs *main_args = main_args_void_ptr;
+    int argc = main_args->argc;
+    char **argv = main_args->argv;
+    int id = main_args->id;
+    const char *file_path = main_args->file_path;
+
+    g_id = id;
+    unity_ffplay_setup_options();
+    register_exit(unity_ffplay_exit);
 
     init_dynload();
 
@@ -3688,6 +3886,8 @@ int main(int argc, char **argv)
 
     if (display_disable) {
         video_disable = 1;
+    } else {
+        display_disable = 1;
     }
     flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER;
     if (audio_disable)
@@ -3750,9 +3950,37 @@ int main(int argc, char **argv)
         do_exit(NULL);
     }
 
+    register_exit(unity_ffplay_exit_in_running);
+
     event_loop(is);
 
-    /* never returns */
+    int *ret_ptr = av_malloc(sizeof(int));
+    *ret_ptr = 0;
+    return ret_ptr;
+}
 
-    return 0;
+DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path)
+{
+    MainArgs *main_args = av_malloc(sizeof(MainArgs));
+    main_args->argc = argc;
+    main_args->argv = argv;
+    main_args->id = id;
+    main_args->file_path = file_path;
+
+    pthread_t handle;
+    pthread_create(&handle, NULL, unity_ffplay_main_thread, main_args);
+    void *ret_ptr = NULL;
+    pthread_join(handle, &ret_ptr);
+    
+    av_freep(&main_args);
+
+    lock();
+    remove_from_array(g_stop_ids, &g_stop_ids_count, id);
+    remove_from_array(g_running_ids, &g_running_ids_count, id);
+    unlock();
+
+    int ret = *(int *)ret_ptr;
+    av_freep(&ret_ptr);
+
+    return ret;
 }

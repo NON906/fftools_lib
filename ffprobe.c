@@ -381,6 +381,8 @@ static void log_callback(void *ptr, int level, const char *fmt, va_list vl)
 #endif
 }
 
+static int exit_flag = 0;
+
 static void ffprobe_cleanup(int ret)
 {
     int i;
@@ -395,6 +397,8 @@ static void ffprobe_cleanup(int ret)
     	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);
     }
+
+    exit_flag = 1;
 }
 
 struct unit_value {
@@ -4072,6 +4076,9 @@ DLL_EXPORT int ffprobe_main(int argc, char **argv, const char *file_path)
 
     show_banner(argc, argv, options);
     parse_options(NULL, argc, argv, options, opt_input_file);
+    if (exit_flag != 0) {
+        return 0;
+    }
 
     if (do_show_log)
         av_log_set_callback(log_callback);

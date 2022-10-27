@@ -474,7 +474,7 @@ static void add_is_pair(int id, VideoState *is)
     new_array[g_is_pair_array_count].id = id;
     new_array[g_is_pair_array_count].is = is;
     if (g_is_pair_array != NULL) {
-        av_freep(g_is_pair_array);
+        av_freep(&g_is_pair_array);
     }
     g_is_pair_array = new_array;
     g_is_pair_array_count++;
@@ -504,7 +504,7 @@ static void remove_is_pair(int id)
 
     int pos = 0;
     for (int loop = 0; loop < g_is_pair_array_count; loop++) {
-        if (pos != loop) {
+        if (del_pos != loop) {
             g_is_pair_array[pos] = g_is_pair_array[loop];
             pos++;
         }
@@ -1490,7 +1490,8 @@ static void do_exit(VideoState *is)
         printf("\n");
     SDL_Quit();
     av_log(NULL, AV_LOG_QUIET, "%s", "");
-    exit(0);
+    //exit(0);
+    unity_ffplay_exit_in_running(0);
 }
 
 static void sigterm_handler(int sig)
@@ -3465,7 +3466,23 @@ static void event_loop(VideoState *cur_stream)
     SDL_Event event;
     double incr, pos, frac;
 
-    while (is_stop() == 0) {
+    for (;;) {
+        double remaining_time = 0.0;
+
+        if (is_stop() != 0) {
+            do_exit(cur_stream);
+            return;
+        }
+
+        if (remaining_time > 0.0)
+            av_usleep((int64_t)(remaining_time * 1000000.0));
+        remaining_time = REFRESH_RATE;
+        if (cur_stream->show_mode != SHOW_MODE_NONE && (!cur_stream->paused || cur_stream->force_refresh))
+            video_refresh(cur_stream, &remaining_time);
+    }
+
+#if 0
+    for (;;) {
         double x;
         refresh_loop_wait_event(cur_stream, &event);
         switch (event.type) {
@@ -3657,6 +3674,7 @@ static void event_loop(VideoState *cur_stream)
             break;
         }
     }
+#endif
 }
 
 static int opt_width(void *optctx, const char *opt, const char *arg)
@@ -3980,7 +3998,8 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     }
 
     lock();
-    add_is_pair(g_id, is);
+    add_is_pair(id, is);
+    add_to_array(&g_running_ids, &g_running_ids_count, id);
     unlock();
 
     register_exit(unity_ffplay_exit_in_running);

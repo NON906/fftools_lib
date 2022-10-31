@@ -326,6 +326,7 @@ typedef struct VideoState {
     FILE *log_output_file_pointer;
     int unity_id;
     uint8_t *unity_data;
+    int frame_width, frame_height;
 } VideoState;
 
 /* options specified by the user */
@@ -1202,6 +1203,11 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
     int ret = 0;
     Uint32 sdl_pix_fmt;
     SDL_BlendMode sdl_blendmode;
+    is->frame_width = frame->width;
+    is->frame_height = frame->height;
+    if (is->unity_data == NULL) {
+        return ret;
+    }
     get_sdl_pix_fmt_and_blendmode(frame->format, &sdl_pix_fmt, &sdl_blendmode);
     //if (realloc_texture(tex, sdl_pix_fmt == SDL_PIXELFORMAT_UNKNOWN ? SDL_PIXELFORMAT_ARGB8888 : sdl_pix_fmt, frame->width, frame->height, sdl_blendmode, 0) < 0)
     //    return -1;
@@ -1210,7 +1216,7 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
         case SDL_PIXELFORMAT_IYUV:
             /* This should only happen if we are not using avfilter... */
             *img_convert_ctx = sws_getCachedContext(*img_convert_ctx,
-                frame->width, frame->height, frame->format, frame->width, frame->height,
+                frame->width, frame->height, frame->format, /*frame->width*/is->width, /*frame->height*/is->height,
                 AV_PIX_FMT_RGBA, sws_flags, NULL, NULL, NULL);
             if (*img_convert_ctx != NULL) {
                 uint8_t *pixels[4] = { is->unity_data };
@@ -1677,8 +1683,8 @@ static int video_open(VideoState *is)
     //    SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
     //SDL_ShowWindow(window);
 
-    is->width  = w;
-    is->height = h;
+    //is->width  = w;
+    //is->height = h;
 
     return 0;
 }
@@ -4171,7 +4177,6 @@ typedef struct {
     char **argv;
     int id;
     const char *file_path;
-    uint8_t *video_buffer;
 } MainArgs;
 
 /* Called from the main */
@@ -4293,7 +4298,6 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     }
 
     is->unity_id = id;
-    is->unity_data = main_args->video_buffer;
 
     lock();
     add_is_pair(id, is);
@@ -4309,14 +4313,13 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     return ret_ptr;
 }
 
-DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path, uint8_t *video_buffer)
+DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path)
 {
     MainArgs *main_args = av_malloc(sizeof(MainArgs));
     main_args->argc = argc;
     main_args->argv = argv;
     main_args->id = id;
     main_args->file_path = file_path;
-    main_args->video_buffer = video_buffer;
 
     pthread_t handle;
     pthread_create(&handle, NULL, unity_ffplay_main_thread, main_args);
@@ -4343,4 +4346,32 @@ DLL_EXPORT void ffplay_get_audio(int id, short *stream, int len)
     if (is != NULL) {
         sdl_audio_callback(is, (Uint8 *)stream, len);
     }
+}
+
+DLL_EXPORT void ffplay_set_video_buffer(int id, uint8_t *buffer, int width, int height)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        is->unity_data = buffer;
+        is->width = width;
+        is->height = height;
+    }
+}
+
+DLL_EXPORT int ffplay_get_frame_width(int id)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        return is->frame_width; 
+    }
+    return -1;
+}
+
+DLL_EXPORT int ffplay_get_frame_height(int id)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        return is->frame_height; 
+    }
+    return -1;
 }

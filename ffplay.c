@@ -1214,6 +1214,7 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
     switch (sdl_pix_fmt) {
         case SDL_PIXELFORMAT_UNKNOWN:
         case SDL_PIXELFORMAT_IYUV:
+        default:
             /* This should only happen if we are not using avfilter... */
             *img_convert_ctx = sws_getCachedContext(*img_convert_ctx,
                 frame->width, frame->height, frame->format, /*frame->width*/is->width, /*frame->height*/is->height,
@@ -1227,7 +1228,15 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
                 //    SDL_UnlockTexture(*tex);
                 //}
                 if (!atomic_flag_test_and_set(tex_lock)) {
-                    sws_scale(*img_convert_ctx, (const uint8_t * const *)frame->data, frame->linesize,
+                    uint8_t *data[3];
+                    int linesize[3];
+                    data[0] = frame->data[0] + frame->linesize[0] * (frame->height - 1);
+                    data[1] = frame->data[1] + frame->linesize[1] * (AV_CEIL_RSHIFT(frame->height, 1) - 1);
+                    data[2] = frame->data[2] + frame->linesize[2] * (AV_CEIL_RSHIFT(frame->height, 1) - 1);
+                    for (int loop = 0; loop < 3; loop++) {
+                        linesize[loop] = -frame->linesize[loop];
+                    }
+                    sws_scale(*img_convert_ctx, (const uint8_t * const *)data, linesize,
                               0, frame->height, pixels, pitch);
                     atomic_flag_clear(tex_lock);
                 }
@@ -1251,7 +1260,6 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
                 return -1;
             }
             break;
-#endif
         default:
             if (frame->linesize[0] < 0) {
                 //ret = SDL_UpdateTexture(*tex, NULL, frame->data[0] + frame->linesize[0] * (frame->height - 1), -frame->linesize[0]);
@@ -1261,6 +1269,7 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
                 memcpy(is->unity_data, frame->data[0], frame->linesize[0] * frame->height);
             }
             break;
+#endif
     }
     return ret;
 }

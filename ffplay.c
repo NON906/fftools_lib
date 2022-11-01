@@ -333,7 +333,7 @@ typedef struct VideoState {
 
 /* options specified by the user */
 static THREAD_LOCAL const AVInputFormat *file_iformat;
-static const char *input_filename;
+static THREAD_LOCAL const char *input_filename;
 static THREAD_LOCAL const char *window_title;
 static THREAD_LOCAL int default_width  = 640;
 static THREAD_LOCAL int default_height = 480;
@@ -421,6 +421,7 @@ static THREAD_LOCAL const struct TextureFormatEntry {
 };
 
 static THREAD_LOCAL_MUST int g_id = -1;
+static THREAD_LOCAL_MUST FILE *g_log_output_file_pointer = NULL;
 
 static int unity_filped = -1;
 static int unity_audio_channels = -1;
@@ -1638,6 +1639,11 @@ static void stream_close(VideoState *is)
 
 static void do_exit(VideoState *is)
 {
+    if (g_log_output_file_pointer != NULL) {
+        fclose(g_log_output_file_pointer);
+        g_log_output_file_pointer = NULL;
+    }
+
     if (is) {
         stream_close(is);
     }
@@ -2394,6 +2400,8 @@ static int audio_thread(void *arg)
     AVRational tb;
     int ret = 0;
 
+    g_log_output_file_pointer = is->log_output_file_pointer;
+
     if (!frame)
         return AVERROR(ENOMEM);
 
@@ -2504,6 +2512,8 @@ static int video_thread(void *arg)
     int last_vfilter_idx = 0;
 #endif
 
+    g_log_output_file_pointer = is->log_output_file_pointer;
+
     if (!frame)
         return AVERROR(ENOMEM);
 
@@ -2602,6 +2612,8 @@ static int subtitle_thread(void *arg)
     Frame *sp;
     int got_subtitle;
     double pts;
+
+    g_log_output_file_pointer = is->log_output_file_pointer;
 
     for (;;) {
         if (!(sp = frame_queue_peek_writable(&is->subpq)))
@@ -3164,6 +3176,8 @@ static void *read_thread(void *arg)
     int scan_all_pmts_set = 0;
     int64_t pkt_ts;
 
+    g_log_output_file_pointer = is->log_output_file_pointer;
+
     /*
     if (!wait_mutex) {
         av_log(NULL, AV_LOG_FATAL, "SDL_CreateMutex(): %s\n", SDL_GetError());
@@ -3347,7 +3361,7 @@ static void *read_thread(void *arg)
 #if CONFIG_RTSP_DEMUXER || CONFIG_MMSH_PROTOCOL
         if (is->paused &&
                 (!strcmp(ic->iformat->name, "rtsp") ||
-                 (ic->pb && !strncmp(input_filename, "mmsh:", 5)))) {
+                 (ic->pb /*&& !strncmp(input_filename, "mmsh:", 5)*/))) {
             /* wait 10 ms to avoid trying to get another packet */
             /* XXX: horrible */
             //SDL_Delay(10);
@@ -4201,6 +4215,24 @@ typedef struct {
     const char *file_path;
 } MainArgs;
 
+static void log_callback_myfile(void *ptr, int level, const char *fmt, va_list vl)
+{
+    if (g_log_output_file_pointer == NULL) {
+        av_log_default_callback(ptr, level, fmt, vl);
+        return;
+    }
+
+    if (level >= 0) {
+        level &= 0xff;
+    }
+
+    if (level > AV_LOG_INFO)
+        return;
+    
+    vfprintf(g_log_output_file_pointer, fmt, vl);
+    fflush(g_log_output_file_pointer);
+}
+
 /* Called from the main */
 //int main(int argc, char **argv)
 static void *unity_ffplay_main_thread(void *main_args_void_ptr)
@@ -4213,6 +4245,11 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     char **argv = main_args->argv;
     int id = main_args->id;
     const char *file_path = main_args->file_path;
+
+    if (file_path != NULL) {
+        g_log_output_file_pointer = fopen(file_path, "w");
+        av_log_set_callback(log_callback_myfile);
+    }
 
     g_id = id;
 
@@ -4319,6 +4356,7 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
         do_exit(NULL);
     }
 
+    is->log_output_file_pointer = g_log_output_file_pointer;
     is->unity_id = id;
 
     lock();

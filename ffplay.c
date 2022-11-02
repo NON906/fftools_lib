@@ -423,7 +423,7 @@ static THREAD_LOCAL const struct TextureFormatEntry {
 static THREAD_LOCAL_MUST int g_id = -1;
 static THREAD_LOCAL_MUST FILE *g_log_output_file_pointer = NULL;
 
-static int unity_filped = -1;
+static int unity_filp_mode = 1;
 static int unity_audio_channels = -1;
 static int unity_audio_sample_rate = -1;
 static int unity_audio_spec_size = -2;
@@ -586,8 +586,8 @@ static void unity_ffplay_exit_in_running(int ret)
     unity_ffplay_exit(ret);
 }
 
-DLL_EXPORT int ffplay_get_filped() {
-    return unity_filped;
+DLL_EXPORT void ffplay_set_filp_mode(int val) {
+    unity_filp_mode = val;
 }
 
 DLL_EXPORT int ffplay_get_audio_channels() {
@@ -1232,18 +1232,29 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
                 //              0, frame->height, pixels, pitch);
                 //    SDL_UnlockTexture(*tex);
                 //}
-                /*if (!atomic_flag_test_and_set(tex_lock))*/ {
-                    uint8_t *data[3];
-                    int linesize[3];
-                    data[0] = frame->data[0] + frame->linesize[0] * (frame->height - 1);
-                    data[1] = frame->data[1] + frame->linesize[1] * (AV_CEIL_RSHIFT(frame->height, 1) - 1);
-                    data[2] = frame->data[2] + frame->linesize[2] * (AV_CEIL_RSHIFT(frame->height, 1) - 1);
-                    for (int loop = 0; loop < 3; loop++) {
-                        linesize[loop] = -frame->linesize[loop];
+                if (!atomic_flag_test_and_set(tex_lock)) {
+                    if (unity_filp_mode == 0) {
+                        uint8_t *data[3] = {};
+                        int linesize[3] = {};
+                        data[0] = frame->data[0] + frame->linesize[0] * (frame->height - 1);
+                        data[1] = frame->data[1] + frame->linesize[1] * (AV_CEIL_RSHIFT(frame->height, 1) - 1);
+                        data[2] = frame->data[2] + frame->linesize[2] * (AV_CEIL_RSHIFT(frame->height, 1) - 1);
+                        for (int loop = 0; loop < 3; loop++) {
+                            linesize[loop] = -frame->linesize[loop];
+                        }
+                        sws_scale(*img_convert_ctx, (const uint8_t * const *)data, linesize,
+                                0, frame->height, pixels, pitch);
                     }
-                    sws_scale(*img_convert_ctx, (const uint8_t * const *)data, linesize,
-                            0, frame->height, pixels, pitch);
-                    //atomic_flag_clear(tex_lock);
+                    else {
+                        pixels[0] = av_malloc(sizeof(uint8_t) * is->width * is->height * 4);
+                        sws_scale(*img_convert_ctx, (const uint8_t * const *)frame->data, frame->linesize,
+                                0, frame->height, pixels, pitch);
+                        for (int data_loop = 0; data_loop < is->height; data_loop++) {
+                            memcpy(is->unity_data + pitch[0] * data_loop, pixels[0] + pitch[0] * (is->height - data_loop - 1), pitch[0]);
+                        }
+                        av_freep(&pixels[0]);
+                    }
+                    atomic_flag_clear(tex_lock);
                 }
             } else {
                 av_log(NULL, AV_LOG_FATAL, "Cannot initialize the conversion context\n");

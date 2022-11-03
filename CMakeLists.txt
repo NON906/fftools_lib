@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.6.0)
 if(WIN32)
 
   link_directories( win )
-  link_directories( win/SDL2-2.24.1/lib/x64 )
+  #link_directories( win/SDL2-2.24.1/lib/x64 )
 
   include_directories( win/include )
   include_directories( win/SDL2-2.24.1/include )

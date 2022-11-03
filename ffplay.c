@@ -427,6 +427,7 @@ static int unity_filp_mode = 1;
 static int unity_audio_channels = -1;
 static int unity_audio_sample_rate = -1;
 static int unity_audio_spec_size = -2;
+static int unity_reset_audio = 1;
 
 static atomic_flag g_lock = ATOMIC_FLAG_INIT;
 static void lock() {
@@ -1233,7 +1234,7 @@ static int upload_texture(atomic_flag *tex_lock, VideoState *is, AVFrame *frame,
                 //    SDL_UnlockTexture(*tex);
                 //}
                 if (!atomic_flag_test_and_set(tex_lock)) {
-                    if (unity_filp_mode == 0) {
+                    if (unity_filp_mode == 0 && sdl_pix_fmt == SDL_PIXELFORMAT_IYUV) {
                         uint8_t *data[3] = {};
                         int linesize[3] = {};
                         data[0] = frame->data[0] + frame->linesize[0] * (frame->height - 1);
@@ -2860,13 +2861,11 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
             len1 = len;
         if (!is->muted && is->audio_buf /*&& is->audio_volume == SDL_MIX_MAXVOLUME*/)
             memcpy(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, len1);
-        /*
         else {
             memset(stream, 0, len1);
-            if (!is->muted && is->audio_buf)
-                SDL_MixAudioFormat(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, AUDIO_S16SYS, len1, is->audio_volume);
+            //if (!is->muted && is->audio_buf)
+            //    SDL_MixAudioFormat(stream, (uint8_t *)is->audio_buf + is->audio_buf_index, AUDIO_S16SYS, len1, is->audio_volume);
         }
-        */
         len -= len1;
         stream += len1;
         is->audio_buf_index += len1;
@@ -3371,8 +3370,8 @@ static void *read_thread(void *arg)
         }
 #if CONFIG_RTSP_DEMUXER || CONFIG_MMSH_PROTOCOL
         if (is->paused &&
-                (!strcmp(ic->iformat->name, "rtsp") ||
-                 (ic->pb /*&& !strncmp(input_filename, "mmsh:", 5)*/))) {
+                (!strcmp(ic->iformat->name, "rtsp") /*||
+                 (ic->pb && !strncmp(input_filename, "mmsh:", 5))*/)) {
             /* wait 10 ms to avoid trying to get another packet */
             /* XXX: horrible */
             //SDL_Delay(10);
@@ -4384,6 +4383,39 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     return ret_ptr;
 }
 
+static void reset_audio(VideoState *is)
+{
+    int audio_stream = is->audio_stream;
+
+    if (is->audio_stream >= 0)
+        stream_component_close(is, is->audio_stream);
+
+    packet_queue_destroy(&is->audioq);
+
+    frame_queue_destory(&is->sampq);
+
+    is->last_audio_stream = is->audio_stream = -1;
+
+    if (frame_queue_init(&is->sampq, &is->audioq, SAMPLE_QUEUE_SIZE, 1) < 0)
+        goto fail;
+
+    if (packet_queue_init(&is->audioq) < 0)
+        goto fail;
+
+    init_clock(&is->audclk, &is->audioq.serial);
+    is->audio_clock_serial = -1;
+    is->audclk.paused = is->paused;
+
+    stream_component_open(is, audio_stream);
+
+    return;
+
+fail:
+    lock();
+    add_to_array(&g_stop_ids, &g_stop_ids_count, is->unity_id);
+    unlock();
+}
+
 DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path)
 {
     MainArgs *main_args = av_malloc(sizeof(MainArgs));
@@ -4558,7 +4590,11 @@ DLL_EXPORT int ffplay_seek_incr_seconds(int id, double incr)
 {
     VideoState *cur_stream = get_is(id);
 
-    if (cur_stream == NULL) {
+    if (unity_reset_audio && cur_stream) {
+        reset_audio(cur_stream);
+    }
+
+    if (cur_stream == NULL || cur_stream->ic == NULL) {
         return -1;
     }
 
@@ -4570,26 +4606,32 @@ DLL_EXPORT int ffplay_seek(int id, double pos)
 {
     VideoState *cur_stream = get_is(id);
 
-    if (cur_stream == NULL || pos > 1.001 || pos < -0.001) {
+    if (unity_reset_audio && cur_stream) {
+        reset_audio(cur_stream);
+    }
+
+    if (cur_stream == NULL || cur_stream->ic == NULL || pos > 1.001 || pos < -0.001) {
         return -1;
     }
 
-    /*if (cur_stream->seek_by_bytes || cur_stream->ic->duration <= 0) {
+    if (/*cur_stream->seek_by_bytes ||*/ cur_stream->ic->duration <= 0) {
         uint64_t size = avio_size(cur_stream->ic->pb);
         stream_seek(cur_stream, (uint64_t)(size * pos), 0, 1);
-    } else*/ {
+    } else {
         int64_t ts;
         ts = (int64_t)(pos * cur_stream->ic->duration);
         if (cur_stream->ic->start_time != AV_NOPTS_VALUE)
             ts += cur_stream->ic->start_time;
         stream_seek(cur_stream, ts, 0, 0);
     }
+
+    return 0;
 }
 
 DLL_EXPORT int64_t ffplay_get_duration_base_time(int id)
 {
     VideoState *is = get_is(id);
-    if (is != NULL) {
+    if (is != NULL && is->ic != NULL) {
         return is->ic->duration;
     }
     return -1;
@@ -4598,7 +4640,7 @@ DLL_EXPORT int64_t ffplay_get_duration_base_time(int id)
 DLL_EXPORT double ffplay_get_duration(int id)
 {
     VideoState *is = get_is(id);
-    if (is != NULL) {
+    if (is != NULL && is->ic != NULL) {
         return (double)is->ic->duration / AV_TIME_BASE;
     }
     return -1.0;
@@ -4607,13 +4649,13 @@ DLL_EXPORT double ffplay_get_duration(int id)
 DLL_EXPORT int ffplay_has_chapter(int id)
 {
     VideoState *is = get_is(id);
-    return (is != NULL) ? (is->ic->nb_chapters <= 1) : 0;
+    return (is != NULL && is->ic != NULL) ? (is->ic->nb_chapters <= 1) : 0;
 }
 
 DLL_EXPORT int ffplay_seek_chapter(int id, int incr)
 {
     VideoState *is = get_is(id);
-    if (is != NULL && is->ic->nb_chapters <= 1) {
+    if (is != NULL && is->ic != NULL && is->ic->nb_chapters <= 1) {
         seek_chapter(is, incr);
         return 0;
     }
@@ -4655,4 +4697,9 @@ DLL_EXPORT int ffplay_get_loop(int id)
         return is->loop;
     }
     return -1;
+}
+
+DLL_EXPORT void ffplay_set_reset_audio(int val)
+{
+    unity_reset_audio = val;
 }

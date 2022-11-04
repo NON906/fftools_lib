@@ -47,7 +47,7 @@ else(WIN32)
 
   add_library( ffmpegDll
                SHARED
-               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c ffplay.c ffprobe.c #unitybuf2.c
+               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c ffplay.c ffprobe.c unitybuf2.c
                ffmpeg_mux.c opt_common.c )
 
   target_link_libraries( ffmpegDll

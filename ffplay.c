@@ -29,10 +29,12 @@
 #define DLL_EXPORT 
 #endif
 
-#define THREAD_LOCAL __thread
+//#define THREAD_LOCAL __thread
+#define THREAD_LOCAL
 #define THREAD_LOCAL_MUST __thread
 #include <stdatomic.h>
 #include "libavutil/thread.h"
+#include <string.h>
 
 #include "config.h"
 #include "config_components.h"
@@ -437,6 +439,17 @@ static void lock() {
 }
 static void unlock() {
     atomic_flag_clear(&g_lock);
+    av_usleep(0);
+}
+
+static atomic_flag g_init_lock = ATOMIC_FLAG_INIT;
+static void init_lock() {
+    while (atomic_flag_test_and_set(&g_init_lock)) {
+        av_usleep(0);
+    }
+}
+static void init_unlock() {
+    atomic_flag_clear(&g_init_lock);
     av_usleep(0);
 }
 
@@ -1162,7 +1175,6 @@ static void calculate_display_rect(SDL_Rect *rect,
                                    int scr_xleft, int scr_ytop, int scr_width, int scr_height,
                                    int pic_width, int pic_height, AVRational pic_sar)
 {
-#if 0
     AVRational aspect_ratio = pic_sar;
     int64_t width, height, x, y;
 
@@ -1184,7 +1196,6 @@ static void calculate_display_rect(SDL_Rect *rect,
     rect->y = scr_ytop  + y;
     rect->w = FFMAX((int)width,  1);
     rect->h = FFMAX((int)height, 1);
-#endif
 }
 
 static void get_sdl_pix_fmt_and_blendmode(int format, Uint32 *sdl_pix_fmt, SDL_BlendMode *sdl_blendmode)
@@ -1363,7 +1374,7 @@ static void video_image_display(VideoState *is)
     }
 #endif
 
-    calculate_display_rect(&rect, is->xleft, is->ytop, is->width, is->height, vp->width, vp->height, vp->sar);
+    //calculate_display_rect(&rect, is->xleft, is->ytop, is->width, is->height, vp->width, vp->height, vp->sar);
     set_sdl_yuv_conversion_mode(vp->frame);
 
     if (!vp->uploaded) {
@@ -1728,9 +1739,9 @@ static void video_display(VideoState *is)
 
     //SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     //SDL_RenderClear(renderer);
-    if (is->audio_st && is->show_mode != SHOW_MODE_VIDEO)
+    /*if (is->audio_st && is->show_mode != SHOW_MODE_VIDEO)
         video_audio_display(is);
-    else if (is->video_st)
+    else */if (is->video_st)
         video_image_display(is);
     //SDL_RenderReadPixels(renderer, NULL, SDL_PIXELFORMAT_ABGR8888, is->unity_data, is->width * 4);
     //SDL_RenderPresent(renderer);
@@ -2494,6 +2505,7 @@ static int decoder_start(Decoder *d, int (*fn)(void *), const char *thread_name,
 #else
     int inner_ret = pthread_create(&d->decoder_tid, NULL, fn, arg);
     if (inner_ret != 0) {
+        av_log(NULL, AV_LOG_FATAL, "pthread_create() on decoder_start() is error: %d\n", inner_ret);
         return AVERROR(inner_ret);
     }
 #endif
@@ -3328,8 +3340,9 @@ static void *read_thread(void *arg)
         AVStream *st = ic->streams[st_index[AVMEDIA_TYPE_VIDEO]];
         AVCodecParameters *codecpar = st->codecpar;
         AVRational sar = av_guess_sample_aspect_ratio(ic, st, NULL);
-        if (codecpar->width)
+        if (codecpar->width) {
             set_default_window_size(codecpar->width, codecpar->height, sar);
+        }
     }
 
     /* open the streams */
@@ -3358,6 +3371,12 @@ static void *read_thread(void *arg)
     if (infinite_buffer < 0 && is->realtime)
         infinite_buffer = 1;
 
+    init_unlock();
+    lock();
+    add_is_pair(is->unity_id, is);
+    add_to_array(&g_running_ids, &g_running_ids_count, is->unity_id);
+    unlock();
+
     for (;;) {
         if (is->abort_request)
             break;
@@ -3370,8 +3389,8 @@ static void *read_thread(void *arg)
         }
 #if CONFIG_RTSP_DEMUXER || CONFIG_MMSH_PROTOCOL
         if (is->paused &&
-                (!strcmp(ic->iformat->name, "rtsp") /*||
-                 (ic->pb && !strncmp(input_filename, "mmsh:", 5))*/)) {
+                (!strcmp(ic->iformat->name, "rtsp") ||
+                 (ic->pb && !strncmp(input_filename, "mmsh:", 5)))) {
             /* wait 10 ms to avoid trying to get another packet */
             /* XXX: horrible */
             //SDL_Delay(10);
@@ -3602,6 +3621,7 @@ static VideoState *stream_open(const char *filename,
 #endif
     if (inner_ret != 0/*!is->read_tid*/) {
         //av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError());
+        av_log(NULL, AV_LOG_FATAL, "pthread_create() on stream_open() is error: %d\n", inner_ret);
 fail:
         stream_close(is);
         return NULL;
@@ -4033,7 +4053,8 @@ static void opt_input_file(void *optctx, const char *filename)
         av_log(NULL, AV_LOG_FATAL,
                "Argument '%s' provided as input filename, but '%s' was already specified.\n",
                 filename, input_filename);
-        exit(1);
+        //exit(1);
+        unity_ffplay_exit(1);
     }
     if (!strcmp(filename, "-"))
         filename = "pipe:";
@@ -4282,6 +4303,7 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
 
     show_banner(argc, argv, options);
 
+    input_filename = NULL;
     parse_options(NULL, argc, argv, options, opt_input_file);
 
     if (!input_filename) {
@@ -4289,7 +4311,8 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
         av_log(NULL, AV_LOG_FATAL, "An input file must be specified\n");
         av_log(NULL, AV_LOG_FATAL,
                "Use -h to get full help or, even better, run 'man %s'\n", program_name);
-        exit(1);
+        //exit(1);
+        unity_ffplay_exit(1);
     }
 
     if (display_disable) {
@@ -4369,11 +4392,6 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     is->log_output_file_pointer = g_log_output_file_pointer;
     is->unity_id = id;
 
-    lock();
-    add_is_pair(id, is);
-    add_to_array(&g_running_ids, &g_running_ids_count, id);
-    unlock();
-
     register_exit(unity_ffplay_exit_in_running);
 
     event_loop(is);
@@ -4418,6 +4436,16 @@ fail:
 
 DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path)
 {
+    init_lock();
+
+#ifdef FFMPEG_KIT
+    uninit_opts();
+
+    const char* program_name_local = "ffplay";
+    program_name = program_name_local;
+    program_birth_year = 2003;
+#endif
+
     MainArgs *main_args = av_malloc(sizeof(MainArgs));
     main_args->argc = argc;
     main_args->argv = argv;

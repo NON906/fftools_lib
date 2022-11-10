@@ -3614,6 +3614,9 @@ static VideoState *stream_open(const char *filename,
     is->audio_volume = startup_volume;
     is->muted = 0;
     is->av_sync_type = av_sync_type;
+    
+    is->unity_id = g_id;
+    is->log_output_file_pointer = g_log_output_file_pointer;
 #if 0
     is->read_tid     = SDL_CreateThread(read_thread, "read_thread", is);
 #else
@@ -4394,6 +4397,9 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
 
     register_exit(unity_ffplay_exit_in_running);
 
+    init_lock();
+    init_unlock();
+
     event_loop(is);
 
     int *ret_ptr = av_malloc(sizeof(int));
@@ -4439,7 +4445,9 @@ DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path
     init_lock();
 
 #ifdef FFMPEG_KIT
-    uninit_opts();
+    //uninit_opts();
+    av_dict_free(&format_opts);
+    av_dict_free(&codec_opts);
 
     const char* program_name_local = "ffplay";
     program_name = program_name_local;

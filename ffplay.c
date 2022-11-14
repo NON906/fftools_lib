@@ -216,10 +216,12 @@ typedef struct Decoder {
     AVRational start_pts_tb;
     int64_t next_pts;
     AVRational next_pts_tb;
+    int decoder_tid_is_running;
     pthread_t decoder_tid;
 } Decoder;
 
 typedef struct VideoState {
+    int read_tid_is_running;
     pthread_t read_tid;
     const AVInputFormat *iformat;
     int abort_request;
@@ -586,6 +588,8 @@ static int is_stop(int id)
 
 static void unity_ffplay_exit(int ret)
 {
+    init_unlock();
+
     int *ret_ptr = av_malloc(sizeof(int));
     *ret_ptr = ret;
     pthread_exit(ret_ptr);
@@ -597,7 +601,9 @@ static void unity_ffplay_exit_in_running(int ret)
         ffplay_stop(g_id);
     }
 
-    unity_ffplay_exit(ret);
+    int *ret_ptr = av_malloc(sizeof(int));
+    *ret_ptr = ret;
+    pthread_exit(ret_ptr);
 }
 
 DLL_EXPORT void ffplay_set_filp_mode(int val) {
@@ -1126,7 +1132,10 @@ static void decoder_abort(Decoder *d, FrameQueue *fq)
 #if 0
     SDL_WaitThread(d->decoder_tid, NULL);
 #else
-    pthread_join(d->decoder_tid, NULL);
+    if (d->decoder_tid_is_running) {
+        pthread_join(d->decoder_tid, NULL);
+        d->decoder_tid_is_running = 0;
+    }
 #endif
     //d->decoder_tid = NULL;
     packet_queue_flush(d->queue);
@@ -1624,7 +1633,10 @@ static void stream_close(VideoState *is)
 #if 0
     SDL_WaitThread(is->read_tid, NULL);
 #else
-    pthread_join(is->read_tid, NULL);
+    if (is->read_tid_is_running) {
+        pthread_join(is->read_tid, NULL);
+        is->read_tid_is_running = 0;
+    }
 #endif
 
     /* close each stream */
@@ -2507,6 +2519,8 @@ static int decoder_start(Decoder *d, int (*fn)(void *), const char *thread_name,
     if (inner_ret != 0) {
         av_log(NULL, AV_LOG_FATAL, "pthread_create() on decoder_start() is error: %d\n", inner_ret);
         return AVERROR(inner_ret);
+    } else {
+        d->decoder_tid_is_running = 1;
     }
 #endif
     //if (!d->decoder_tid) {
@@ -3215,12 +3229,14 @@ static void *read_thread(void *arg)
     if (!pkt) {
         av_log(NULL, AV_LOG_FATAL, "Could not allocate packet.\n");
         ret = AVERROR(ENOMEM);
+        init_unlock();
         goto fail;
     }
     ic = avformat_alloc_context();
     if (!ic) {
         av_log(NULL, AV_LOG_FATAL, "Could not allocate context.\n");
         ret = AVERROR(ENOMEM);
+        init_unlock();
         goto fail;
     }
     ic->interrupt_callback.callback = decode_interrupt_cb;
@@ -3233,6 +3249,7 @@ static void *read_thread(void *arg)
     if (err < 0) {
         print_error(is->filename, err);
         ret = -1;
+        init_unlock();
         goto fail;
     }
     if (scan_all_pmts_set)
@@ -3241,6 +3258,7 @@ static void *read_thread(void *arg)
     if ((t = av_dict_get(format_opts, "", NULL, AV_DICT_IGNORE_SUFFIX))) {
         av_log(NULL, AV_LOG_ERROR, "Option %s not found.\n", t->key);
         ret = AVERROR_OPTION_NOT_FOUND;
+        init_unlock();
         goto fail;
     }
     is->ic = ic;
@@ -3264,6 +3282,7 @@ static void *read_thread(void *arg)
             av_log(NULL, AV_LOG_WARNING,
                    "%s: could not find codec parameters\n", is->filename);
             ret = -1;
+            init_unlock();
             goto fail;
         }
     }
@@ -3365,6 +3384,7 @@ static void *read_thread(void *arg)
         av_log(NULL, AV_LOG_FATAL, "Failed to open file '%s' or configure filtergraph\n",
                is->filename);
         ret = -1;
+        init_unlock();
         goto fail;
     }
 
@@ -3621,12 +3641,16 @@ static VideoState *stream_open(const char *filename,
     is->read_tid     = SDL_CreateThread(read_thread, "read_thread", is);
 #else
     int inner_ret = pthread_create(&is->read_tid, NULL, read_thread, is);
+    if (inner_ret == 0) {
+        is->read_tid_is_running = 1;
+    }
 #endif
     if (inner_ret != 0/*!is->read_tid*/) {
         //av_log(NULL, AV_LOG_FATAL, "SDL_CreateThread(): %s\n", SDL_GetError());
         av_log(NULL, AV_LOG_FATAL, "pthread_create() on stream_open() is error: %d\n", inner_ret);
 fail:
         stream_close(is);
+        init_unlock();
         return NULL;
     }
     return is;
@@ -4386,19 +4410,20 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
         renderer = 1;
     }
 
+    register_exit(unity_ffplay_exit_in_running);
+
     is = stream_open(input_filename, file_iformat);
     if (!is) {
         av_log(NULL, AV_LOG_FATAL, "Failed to initialize VideoState!\n");
+        init_unlock();
         do_exit(NULL);
     }
 
     is->log_output_file_pointer = g_log_output_file_pointer;
     is->unity_id = id;
 
-    register_exit(unity_ffplay_exit_in_running);
-
-    init_lock();
-    init_unlock();
+    //init_lock();
+    //init_unlock();
 
     event_loop(is);
 

@@ -330,8 +330,11 @@ typedef struct LogBuffer {
 static LogBuffer *log_buffer;
 static int log_buffer_size;
 
+#ifdef __linux__
 static int g_default_stdout_no = -1;
-//static FILE* g_file_ptr = NULL;
+#else
+static FILE* g_file_ptr = NULL;
+#endif
 
 static void log_callback(void *ptr, int level, const char *fmt, va_list vl)
 {
@@ -394,17 +397,18 @@ static void ffprobe_cleanup(int ret)
     pthread_mutex_destroy(&log_mutex);
 #endif
 
+#ifdef __linux__
     if (g_default_stdout_no != -1) {
     	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);
     }
-    /*
+#else
     if (g_file_ptr != NULL) {
         fflush(g_file_ptr);
         fclose(g_file_ptr);
         g_file_ptr = NULL;
     }
-    */
+#endif
 
     exit_flag = 1;
 }
@@ -624,13 +628,17 @@ static inline void writer_printf_avio(WriterContext *wctx, const char *fmt, ...)
 static inline void writer_w8_printf(WriterContext *wctx, int b)
 {
     printf("%c", b);
-    //fprintf(g_file_ptr, "%c", b);
+#ifndef __linux__
+    fprintf(g_file_ptr, "%c", b);
+#endif
 }
 
 static inline void writer_put_str_printf(WriterContext *wctx, const char *str)
 {
     printf("%s", str);
-    //fprintf(g_file_ptr, "%s", str);
+#ifndef __linux__
+    fprintf(g_file_ptr, "%s", str);
+#endif
 }
 
 static inline void writer_printf_printf(WriterContext *wctx, const char *fmt, ...)
@@ -639,7 +647,9 @@ static inline void writer_printf_printf(WriterContext *wctx, const char *fmt, ..
 
     va_start(ap, fmt);
     vprintf(fmt, ap);
-    //vfprintf(g_file_ptr, fmt, ap);
+#ifndef __linux__
+    vfprintf(g_file_ptr, fmt, ap);
+#endif
     va_end(ap);
 }
 
@@ -4063,15 +4073,16 @@ DLL_EXPORT int ffprobe_main(int argc, char **argv, const char *file_path)
     print_input_filename = NULL;
     exit_flag = 0;
 
+#ifdef __linux__
     g_default_stdout_no = fileno(stdout);
     if (file_path != NULL) {
         freopen(file_path, "w", stdout);
     }
-    /*
+#else
     if (file_path != NULL) {
         g_file_ptr = fopen(file_path, "w");
     }
-    */
+#endif
 
     init_dynload();
 
@@ -4221,17 +4232,18 @@ end:
 
     ffprobe_cleanup(ret < 0);
     
+#ifdef __linux__
     if (file_path != NULL) {
     	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);
     }
-    /*
+#else
     if (file_path != NULL) {
         fflush(g_file_ptr);
         fclose(g_file_ptr);
         g_file_ptr = NULL;
     }
-    */
+#endif
 
     return ret < 0;
 }

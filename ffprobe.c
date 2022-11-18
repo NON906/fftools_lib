@@ -330,8 +330,8 @@ typedef struct LogBuffer {
 static LogBuffer *log_buffer;
 static int log_buffer_size;
 
-//static int g_default_stdout_no = -1;
-static FILE* g_file_ptr = NULL;
+static int g_default_stdout_no = -1;
+//static FILE* g_file_ptr = NULL;
 
 static void log_callback(void *ptr, int level, const char *fmt, va_list vl)
 {
@@ -394,15 +394,17 @@ static void ffprobe_cleanup(int ret)
     pthread_mutex_destroy(&log_mutex);
 #endif
 
-    //if (g_default_stdout_no != -1) {
-    //	fflush(stdout);
+    if (g_default_stdout_no != -1) {
+    	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);
-    //}
+    }
+    /*
     if (g_file_ptr != NULL) {
         fflush(g_file_ptr);
         fclose(g_file_ptr);
         g_file_ptr = NULL;
     }
+    */
 
     exit_flag = 1;
 }
@@ -622,13 +624,13 @@ static inline void writer_printf_avio(WriterContext *wctx, const char *fmt, ...)
 static inline void writer_w8_printf(WriterContext *wctx, int b)
 {
     printf("%c", b);
-    fprintf(g_file_ptr, "%c", b);
+    //fprintf(g_file_ptr, "%c", b);
 }
 
 static inline void writer_put_str_printf(WriterContext *wctx, const char *str)
 {
     printf("%s", str);
-    fprintf(g_file_ptr, "%s", str);
+    //fprintf(g_file_ptr, "%s", str);
 }
 
 static inline void writer_printf_printf(WriterContext *wctx, const char *fmt, ...)
@@ -637,7 +639,7 @@ static inline void writer_printf_printf(WriterContext *wctx, const char *fmt, ..
 
     va_start(ap, fmt);
     vprintf(fmt, ap);
-    vfprintf(g_file_ptr, fmt, ap);
+    //vfprintf(g_file_ptr, fmt, ap);
     va_end(ap);
 }
 
@@ -4061,13 +4063,15 @@ DLL_EXPORT int ffprobe_main(int argc, char **argv, const char *file_path)
     print_input_filename = NULL;
     exit_flag = 0;
 
-    //g_default_stdout_no = fileno(stdout);
-    //if (file_path != NULL) {
-    //    freopen(file_path, "w", stdout);
-    //}
+    g_default_stdout_no = fileno(stdout);
+    if (file_path != NULL) {
+        freopen(file_path, "w", stdout);
+    }
+    /*
     if (file_path != NULL) {
         g_file_ptr = fopen(file_path, "w");
     }
+    */
 
     init_dynload();
 
@@ -4217,15 +4221,17 @@ end:
 
     ffprobe_cleanup(ret < 0);
     
-    //if (file_path != NULL) {
-    //	fflush(stdout);
+    if (file_path != NULL) {
+    	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);
-    //}
+    }
+    /*
     if (file_path != NULL) {
         fflush(g_file_ptr);
         fclose(g_file_ptr);
         g_file_ptr = NULL;
     }
+    */
 
     return ret < 0;
 }

@@ -330,7 +330,7 @@ typedef struct LogBuffer {
 static LogBuffer *log_buffer;
 static int log_buffer_size;
 
-#ifdef __linux__
+#if 1
 static int g_default_stdout_no = -1;
 #else
 static FILE* g_file_ptr = NULL;
@@ -397,7 +397,7 @@ static void ffprobe_cleanup(int ret)
     pthread_mutex_destroy(&log_mutex);
 #endif
 
-#ifdef __linux__
+#if 1
     if (g_default_stdout_no != -1) {
     	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);
@@ -628,7 +628,7 @@ static inline void writer_printf_avio(WriterContext *wctx, const char *fmt, ...)
 static inline void writer_w8_printf(WriterContext *wctx, int b)
 {
     printf("%c", b);
-#ifndef __linux__
+#if 0
     fprintf(g_file_ptr, "%c", b);
 #endif
 }
@@ -636,7 +636,7 @@ static inline void writer_w8_printf(WriterContext *wctx, int b)
 static inline void writer_put_str_printf(WriterContext *wctx, const char *str)
 {
     printf("%s", str);
-#ifndef __linux__
+#if 0
     fprintf(g_file_ptr, "%s", str);
 #endif
 }
@@ -647,7 +647,7 @@ static inline void writer_printf_printf(WriterContext *wctx, const char *fmt, ..
 
     va_start(ap, fmt);
     vprintf(fmt, ap);
-#ifndef __linux__
+#if 0
     vfprintf(g_file_ptr, fmt, ap);
 #endif
     va_end(ap);
@@ -4073,7 +4073,7 @@ DLL_EXPORT int ffprobe_main(int argc, char **argv, const char *file_path)
     print_input_filename = NULL;
     exit_flag = 0;
 
-#ifdef __linux__
+#if 1
     g_default_stdout_no = fileno(stdout);
     if (file_path != NULL) {
         freopen(file_path, "w", stdout);
@@ -4232,7 +4232,7 @@ end:
 
     ffprobe_cleanup(ret < 0);
     
-#ifdef __linux__
+#if 1
     if (file_path != NULL) {
     	fflush(stdout);
         //dup2(fileno(stdout), g_default_stdout_no);

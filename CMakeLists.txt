@@ -52,9 +52,11 @@ else(WIN32)
 
   target_link_libraries( ffmpegDll
                          avdevice avfilter avformat swresample swscale avcodec avutil
-                         mp3lame aom gif gmp gnutls gnutlsxx hogweed lilv-0 ltdl nettle ogg openh264 opus pcre pcrecpp pcreposix serd-0 sord-0 sratom-0
+                         mp3lame aom gif gmp gnutls gnutlsxx hogweed lilv-0 ltdl nettle openh264 opus pcre pcrecpp pcreposix serd-0 sord-0 sratom-0
                          theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webpdecoder webpdemux webpmux webp yasm z
-                         sndio Xv stdc++ dl mvec m c
+                         #sndio
+                         ogg lzma
+                         Xv stdc++ dl mvec m c
                          xcb-shm xcb )
 
   find_package(ALSA REQUIRED)
@@ -66,7 +68,7 @@ else(WIN32)
   find_package(SDL2 REQUIRED)
   if (SDL2_FOUND)
       include_directories(${SDL2_INCLUDE_DIRS})
-      target_link_libraries(ffmpegDll ${SDL2_LIBRARIES})
+  #    target_link_libraries(ffmpegDll ${SDL2_LIBRARIES})
   endif(SDL2_FOUND)
 
 endif(WIN32)

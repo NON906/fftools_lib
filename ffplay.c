@@ -2866,6 +2866,10 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
     VideoState *is = opaque;
     int audio_size, len1;
 
+    if (!is->audio_st) {
+        return;
+    }
+
     audio_callback_time = av_gettime_relative();
 
     while (len > 0) {
@@ -3120,14 +3124,20 @@ static int stream_component_open(VideoState *is, int stream_index)
         is->audio_stream = stream_index;
         is->audio_st = ic->streams[stream_index];
 
-        if ((ret = decoder_init(&is->auddec, avctx, &is->audioq, &is->continue_read_thread)) < 0)
+        if ((ret = decoder_init(&is->auddec, avctx, &is->audioq, &is->continue_read_thread)) < 0) {
+            is->audio_stream = -1;
+            is->audio_st = NULL;
             goto fail;
+        }
         if ((is->ic->iformat->flags & (AVFMT_NOBINSEARCH | AVFMT_NOGENSEARCH | AVFMT_NO_BYTE_SEEK)) && !is->ic->iformat->read_seek) {
             is->auddec.start_pts = is->audio_st->start_time;
             is->auddec.start_pts_tb = is->audio_st->time_base;
         }
-        if ((ret = decoder_start(&is->auddec, audio_thread, "audio_decoder", is)) < 0)
+        if ((ret = decoder_start(&is->auddec, audio_thread, "audio_decoder", is)) < 0) {
+            is->audio_stream = -1;
+            is->audio_st = NULL;
             goto out;
+        }
         //SDL_PauseAudioDevice(audio_dev, 0);
         break;
     case AVMEDIA_TYPE_VIDEO:

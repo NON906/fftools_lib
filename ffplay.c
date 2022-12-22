@@ -81,6 +81,11 @@
 #include "opt_common.h"
 #endif
 
+#ifdef __ANDROID__
+extern void ffmpegkit_log_callback_function(void *ptr, int level, const char* format, va_list vargs);
+extern int global_get_redirectionEnabled();
+#endif
+
 //const char program_name[] = "ffplay";
 //const int program_birth_year = 2003;
 
@@ -2760,7 +2765,7 @@ static int audio_decode_frame(VideoState *is)
         return -1;
 
     do {
-#if 0//defined(_WIN32)
+#if defined(_WIN32)
         while (frame_queue_nb_remaining(&is->sampq) == 0) {
             if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2)
                 return -1;
@@ -4286,7 +4291,16 @@ typedef struct {
 static void log_callback_myfile(void *ptr, int level, const char *fmt, va_list vl)
 {
     if (g_log_output_file_pointer == NULL) {
+#ifdef __ANDROID__
+        if (global_get_redirectionEnabled()) {
+            ffmpegkit_log_callback_function(ptr, level, fmt, vl);
+        }
+        else {
+            av_log_default_callback(ptr, level, fmt, vl);
+        }
+#else
         av_log_default_callback(ptr, level, fmt, vl);
+#endif
         return;
     }
 
@@ -4314,9 +4328,9 @@ static void *unity_ffplay_main_thread(void *main_args_void_ptr)
     int id = main_args->id;
     const char *file_path = main_args->file_path;
 
+    av_log_set_callback(log_callback_myfile);
     if (file_path != NULL) {
         g_log_output_file_pointer = fopen(file_path, "w");
-        av_log_set_callback(log_callback_myfile);
     }
 
     g_id = id;

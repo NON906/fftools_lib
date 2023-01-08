@@ -2,16 +2,22 @@ cmake_minimum_required(VERSION 3.6.0)
 
 if(WIN32)
 
-  link_directories( win )
-  #link_directories( win/SDL2-2.24.1/lib/x64 )
+  set(CMAKE_GNUtoMS ON)
 
-  include_directories( win/include )
+  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    link_directories( win/x86 )
+    include_directories( win/x86/include )
+  else()
+    link_directories( win )
+    include_directories( win/include )
+  endif()
+
   include_directories( win/SDL2-2.24.1/include )
   include_directories( FFmpeg )
 
   add_library( ffmpegDll
                SHARED
-               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c ffplay.c ffprobe.c 
+               cmdutils.c ffmpeg.c ffmpeg_filter.c ffmpeg_hw.c ffmpeg_opt.c ffplay.c ffprobe.c unitybuf2.c
                ffmpeg_mux.c opt_common.c )
 
   target_link_libraries( ffmpegDll

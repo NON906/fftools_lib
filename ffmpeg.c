@@ -4808,3 +4808,41 @@ DLL_EXPORT int ffmpeg_start(int argc, char **argv, int id, const char *file_path
 
     return ret;
 }
+
+static pthread_t g_handle;
+static int g_current_id;
+static MainArgs *g_main_args;
+
+DLL_EXPORT void ffmpeg_start2(int argc, char **argv, int id, const char *file_path)
+{
+    g_main_args = av_malloc(sizeof(MainArgs));
+    g_main_args->argc = argc;
+    g_main_args->argv = argv;
+    g_main_args->id = id;
+    g_main_args->file_path = file_path;
+
+    g_current_id = id;
+
+    pthread_create(&g_handle, NULL, ffmpeg_main_thread, g_main_args);
+}
+
+DLL_EXPORT int ffmpeg_stop2()
+{
+    ffmpeg_stop(g_current_id);
+
+    void *ret_ptr = NULL;
+    pthread_join(g_handle, &ret_ptr);
+    
+    av_freep(&g_main_args);
+
+    lock();
+    remove_from_array(g_stop_ids, &g_stop_ids_count, g_current_id);
+    remove_from_array(g_force_stop_ids, &g_force_stop_ids_count, g_current_id);
+    remove_from_array(g_running_ids, &g_running_ids_count, g_current_id);
+    unlock();
+
+    int ret = *(int *)ret_ptr;
+    av_freep(&ret_ptr);
+
+    return ret;
+}

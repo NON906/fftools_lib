@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.6.0)
 
 if(WIN32)
 
-  set(CMAKE_GNUtoMS ON)
-
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
     link_directories( win/x86 )
     include_directories( win/x86/include )

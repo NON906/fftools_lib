@@ -2747,6 +2747,8 @@ static int synchronize_audio(VideoState *is, int nb_samples)
     return wanted_nb_samples;
 }
 
+static void reset_audio(VideoState *is);
+
 /**
  * Decode one audio frame and return its uncompressed size.
  *
@@ -2767,8 +2769,12 @@ static int audio_decode_frame(VideoState *is)
     do {
 #if 1//defined(_WIN32)
         while (frame_queue_nb_remaining(&is->sampq) == 0) {
-            if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2)
+            if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2) {
+                if (unity_reset_audio) {
+                    reset_audio(is);
+                }
                 return -1;
+            }
             av_usleep (1000);
         }
 #endif
@@ -4675,9 +4681,11 @@ DLL_EXPORT int ffplay_seek_incr_seconds(int id, double incr)
 {
     VideoState *cur_stream = get_is(id);
 
+#if 0
     if (unity_reset_audio && cur_stream) {
         reset_audio(cur_stream);
     }
+#endif
 
     if (cur_stream == NULL || cur_stream->ic == NULL) {
         return -1;
@@ -4691,9 +4699,11 @@ DLL_EXPORT int ffplay_seek(int id, double pos)
 {
     VideoState *cur_stream = get_is(id);
 
+#if 0
     if (unity_reset_audio && cur_stream) {
         reset_audio(cur_stream);
     }
+#endif
 
     if (cur_stream == NULL || cur_stream->ic == NULL || pos > 1.001 || pos < -0.001) {
         return -1;

@@ -444,6 +444,12 @@ static void lock() {
         av_usleep(0);
     }
 }
+static int try_lock() {
+    if (atomic_flag_test_and_set(&g_lock)) {
+        return 0;
+    }
+    return 1;
+}
 static void unlock() {
     atomic_flag_clear(&g_lock);
     av_usleep(0);
@@ -554,14 +560,27 @@ DLL_EXPORT int ffplay_is_running(int id)
 {
     int ret = 0;
     if (g_running_ids_count > 0) {
-        lock();
+        int is_locked = 0;
+        int count = 0;
+        do
+        {
+            is_locked = try_lock();
+            count++;
+            if (is_locked == 0) {
+                av_usleep(100);
+            }
+        } while (is_locked == 0 && count < 100);
+
         for (int loop = 0; loop < g_running_ids_count; loop++) {
             if (g_running_ids[loop] == id) {
                 ret = 1;
                 break;
             }
         }
-        unlock();
+
+        if (is_locked != 0) {
+            unlock();
+        }
     }
 
     return ret;

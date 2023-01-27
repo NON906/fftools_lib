@@ -2373,7 +2373,7 @@ fail:
 
 static int configure_audio_filters(VideoState *is, const char *afilters, int force_output_format)
 {
-    static const enum AVSampleFormat sample_fmts[] = { AV_SAMPLE_FMT_S16, AV_SAMPLE_FMT_NONE };
+    static const enum AVSampleFormat sample_fmts[] = { AV_SAMPLE_FMT_FLT/*AV_SAMPLE_FMT_S16*/, AV_SAMPLE_FMT_NONE };
     int sample_rates[2] = { 0, -1 };
     AVFilterContext *filt_asrc = NULL, *filt_asink = NULL;
     char aresample_swr_opts[512] = "";
@@ -2976,7 +2976,7 @@ static int audio_open(void *opaque, AVChannelLayout *wanted_channel_layout, int 
     }
     while (next_sample_rate_idx && next_sample_rates[next_sample_rate_idx] >= wanted_spec.freq)
         next_sample_rate_idx--;
-    wanted_spec.format = AUDIO_S16SYS;
+    wanted_spec.format = AUDIO_F32SYS;//AUDIO_S16SYS;
     wanted_spec.silence = 0;
     wanted_spec.samples = FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC));
     //wanted_spec.callback = sdl_audio_callback;
@@ -3026,7 +3026,7 @@ static int audio_open(void *opaque, AVChannelLayout *wanted_channel_layout, int 
         unity_audio_sample_rate = spec.freq;
     }
 
-    audio_hw_params->fmt = AV_SAMPLE_FMT_S16;
+    audio_hw_params->fmt = AV_SAMPLE_FMT_FLT;//AV_SAMPLE_FMT_S16;
     audio_hw_params->freq = spec.freq;
     if (av_channel_layout_copy(&audio_hw_params->ch_layout, wanted_channel_layout) < 0)
         return -1;
@@ -4553,7 +4553,8 @@ DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path
     return ret;
 }
 
-DLL_EXPORT int ffplay_get_audio(int id, short *stream, int len)
+//DLL_EXPORT int ffplay_get_audio(int id, short *stream, int len)
+DLL_EXPORT int ffplay_get_audio(int id, float *stream, int len)
 {
     void *is = get_is(id);
     if (is != NULL) {
@@ -4816,4 +4817,12 @@ DLL_EXPORT int ffplay_get_loop(int id)
 DLL_EXPORT void ffplay_set_reset_audio(int val)
 {
     unity_reset_audio = val;
+}
+
+DLL_EXPORT void ffplay_force_reset_audio(int id)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        reset_audio(is);
+    }
 }

@@ -437,6 +437,7 @@ static int unity_audio_channels = -1;
 static int unity_audio_sample_rate = -1;
 static int unity_audio_spec_size = -2;
 static int unity_reset_audio = 1;
+static int unity_max_packets = INT_MAX;
 
 static atomic_flag g_lock = ATOMIC_FLAG_INIT;
 static void lock() {
@@ -849,7 +850,9 @@ static int packet_queue_get(PacketQueue *q, AVPacket *pkt, int block, int *seria
             while (atomic_load(&q->cond) == 0) {
                 atomic_flag_clear(&q->mutex);
                 av_usleep(0);
-                atomic_flag_test_and_set(&q->mutex);
+                while (atomic_flag_test_and_set(&q->mutex)) {
+                    av_usleep(0);
+                }
             }
             atomic_store(&q->cond, 0);
         }
@@ -3251,6 +3254,8 @@ static void *read_thread(void *arg)
     atomic_flag wait_mutex = ATOMIC_FLAG_INIT;
     int scan_all_pmts_set = 0;
     int64_t pkt_ts;
+    int skip_video_packet = 0;
+    int prev_key_packet = 0;
 
     g_log_output_file_pointer = is->log_output_file_pointer;
 
@@ -3454,7 +3459,7 @@ static void *read_thread(void *arg)
             /* wait 10 ms to avoid trying to get another packet */
             /* XXX: horrible */
             //SDL_Delay(10);
-            av_usleep(10);
+            av_usleep(10000);
             continue;
         }
 #endif
@@ -3507,22 +3512,9 @@ static void *read_thread(void *arg)
                 stream_has_enough_packets(is->subtitle_st, is->subtitle_stream, &is->subtitleq)))) {
             /* wait 10 ms */
             //SDL_LockMutex(wait_mutex);
-            while (atomic_flag_test_and_set(&wait_mutex)) {
-                av_usleep(0);
-            }
             //SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
-            int64_t start_time = av_gettime_relative();
-            while (av_gettime_relative() - start_time < 10) {
-                if (atomic_load(&is->continue_read_thread) != 0) {
-                    atomic_store(&is->continue_read_thread, 0);
-                    break;
-                }
-                atomic_flag_clear(&wait_mutex);
-                av_usleep(0);
-                atomic_flag_test_and_set(&wait_mutex);
-            }
             //SDL_UnlockMutex(wait_mutex);
-            atomic_flag_clear(&wait_mutex);
+            av_usleep(0);
             continue;
         }
         if (!is->paused &&
@@ -3556,22 +3548,9 @@ static void *read_thread(void *arg)
                     break;
             }
             //SDL_LockMutex(wait_mutex);
-            while (atomic_flag_test_and_set(&wait_mutex)) {
-                av_usleep(0);
-            }
             //SDL_CondWaitTimeout(is->continue_read_thread, wait_mutex, 10);
-            int64_t start_time = av_gettime_relative();
-            while (av_gettime_relative() - start_time < 10) {
-                if (atomic_load(&is->continue_read_thread) != 0) {
-                    atomic_store(&is->continue_read_thread, 0);
-                    break;
-                }
-                atomic_flag_clear(&wait_mutex);
-                av_usleep(0);
-                atomic_flag_test_and_set(&wait_mutex);
-            }
             //SDL_UnlockMutex(wait_mutex);
-            atomic_flag_clear(&wait_mutex);
+            av_usleep(0);
             continue;
         } else {
             is->eof = 0;
@@ -3588,7 +3567,26 @@ static void *read_thread(void *arg)
             packet_queue_put(&is->audioq, pkt);
         } else if (pkt->stream_index == is->video_stream && pkt_in_play_range
                    && !(is->video_st->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
-            packet_queue_put(&is->videoq, pkt);
+            if (duration != AV_NOPTS_VALUE) {
+                packet_queue_put(&is->videoq, pkt);
+            }
+            else if (pkt->flags & AV_PKT_FLAG_KEY) {
+                if (prev_key_packet == 0) {
+                    packet_queue_flush(&is->videoq);
+                }
+                packet_queue_put(&is->videoq, pkt);
+                skip_video_packet = 0;
+                prev_key_packet = 1;
+            }
+            else if (is->videoq.nb_packets < unity_max_packets /*&& skip_video_packet == 0*/) {
+                packet_queue_put(&is->videoq, pkt);
+                prev_key_packet = 0;
+            }
+            else {
+                av_packet_unref(pkt);
+                skip_video_packet = 1;
+                prev_key_packet = 0;
+            }
         } else if (pkt->stream_index == is->subtitle_stream && pkt_in_play_range) {
             packet_queue_put(&is->subtitleq, pkt);
         } else {
@@ -4825,4 +4823,9 @@ DLL_EXPORT void ffplay_force_reset_audio(int id)
     if (is != NULL) {
         reset_audio(is);
     }
+}
+
+DLL_EXPORT void ffplay_set_max_packets(int val)
+{
+    unity_max_packets = val;
 }

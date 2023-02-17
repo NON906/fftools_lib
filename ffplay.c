@@ -3837,6 +3837,14 @@ static void seek_chapter(VideoState *is, int incr)
                                  AV_TIME_BASE_Q), 0, 0);
 }
 
+static void event_main(VideoState *cur_stream)
+{
+    double remaining_time = 0.0;
+
+    if (cur_stream->show_mode != SHOW_MODE_NONE && (!cur_stream->paused || cur_stream->force_refresh))
+        video_refresh(cur_stream, &remaining_time);
+}
+
 /* handle an event sent by the GUI */
 static void event_loop(VideoState *cur_stream)
 {
@@ -3851,11 +3859,14 @@ static void event_loop(VideoState *cur_stream)
             return;
         }
 
+        /*
         if (remaining_time > 0.0)
             av_usleep((int64_t)(remaining_time * 1000000.0));
         remaining_time = REFRESH_RATE;
         if (cur_stream->show_mode != SHOW_MODE_NONE && (!cur_stream->paused || cur_stream->force_refresh))
             video_refresh(cur_stream, &remaining_time);
+        */
+        av_usleep(10000);
     }
 
 #if 0
@@ -4828,4 +4839,12 @@ DLL_EXPORT void ffplay_force_reset_audio(int id)
 DLL_EXPORT void ffplay_set_max_packets(int val)
 {
     unity_max_packets = val;
+}
+
+DLL_EXPORT void ffplay_call_event(int id)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        event_main(is);
+    }
 }

@@ -3572,7 +3572,7 @@ static void *read_thread(void *arg)
             }
             else if (pkt->flags & AV_PKT_FLAG_KEY) {
                 if (prev_key_packet == 0) {
-                    packet_queue_flush(&is->videoq);
+                    //packet_queue_flush(&is->videoq);
                 }
                 packet_queue_put(&is->videoq, pkt);
                 skip_video_packet = 0;
@@ -3839,7 +3839,7 @@ static void seek_chapter(VideoState *is, int incr)
 
 static void event_main(VideoState *cur_stream)
 {
-    double remaining_time = 0.0;
+    double remaining_time = REFRESH_RATE;
 
     if (cur_stream->show_mode != SHOW_MODE_NONE && (!cur_stream->paused || cur_stream->force_refresh))
         video_refresh(cur_stream, &remaining_time);

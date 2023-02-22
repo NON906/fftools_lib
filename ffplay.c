@@ -4848,3 +4848,31 @@ DLL_EXPORT void ffplay_call_event(int id)
         event_main(is);
     }
 }
+
+DLL_EXPORT int ffplay_has_video(int id)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        if (is->video_st) {
+            return 1;
+        }
+        else {
+            return 0;
+        }
+    }
+    return -1;
+}
+
+DLL_EXPORT int ffplay_has_audio(int id)
+{
+    VideoState *is = get_is(id);
+    if (is != NULL) {
+        if (is->audio_st) {
+            return 1;
+        }
+        else {
+            return 0;
+        }
+    }
+    return -1;
+}

@@ -253,16 +253,16 @@ DLL_EXPORT int ffmpeg_is_running(int id)
 
 DLL_EXPORT void ffmpeg_stop(int id)
 {
-    lock();
+    //lock();
     add_to_array(&g_stop_ids, &g_stop_ids_count, id);
-    unlock();
+    //unlock();
 }
 
 DLL_EXPORT void ffmpeg_force_stop(int id)
 {
-    lock();
+    //lock();
     add_to_array(&g_force_stop_ids, &g_force_stop_ids_count, id);
-    unlock();
+    //unlock();
 }
 
 static int is_force_stop()

@@ -432,6 +432,8 @@ static THREAD_LOCAL const struct TextureFormatEntry {
 static THREAD_LOCAL_MUST int g_id = -1;
 static THREAD_LOCAL_MUST FILE *g_log_output_file_pointer = NULL;
 
+static atomic_flag g_tex_lock = ATOMIC_FLAG_INIT;
+
 static int unity_filp_mode = 1;
 static int unity_audio_channels = -1;
 static int unity_audio_sample_rate = -1;
@@ -1414,7 +1416,7 @@ static void video_image_display(VideoState *is)
     set_sdl_yuv_conversion_mode(vp->frame);
 
     if (!vp->uploaded) {
-        if (upload_texture(&is->vid_texture_lock, is, vp->frame, &is->img_convert_ctx) < 0) {
+        if (upload_texture(/*&is->vid_texture_lock*/ &g_tex_lock, is, vp->frame, &is->img_convert_ctx) < 0) {
             set_sdl_yuv_conversion_mode(NULL);
             return;
         }

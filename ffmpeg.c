@@ -253,16 +253,16 @@ DLL_EXPORT int ffmpeg_is_running(int id)
 
 DLL_EXPORT void ffmpeg_stop(int id)
 {
-    //lock();
+    lock();
     add_to_array(&g_stop_ids, &g_stop_ids_count, id);
-    //unlock();
+    unlock();
 }
 
 DLL_EXPORT void ffmpeg_force_stop(int id)
 {
-    //lock();
+    lock();
     add_to_array(&g_force_stop_ids, &g_force_stop_ids_count, id);
-    //unlock();
+    unlock();
 }
 
 static int is_force_stop()
@@ -4485,6 +4485,10 @@ static int transcode(void)
         goto fail;
 #endif
 
+    lock();
+    add_to_array(&g_running_ids, &g_running_ids_count, g_id);
+    unlock();
+
     while (!received_sigterm) {
         int64_t cur_time= av_gettime_relative();
 
@@ -4705,12 +4709,6 @@ static void *ffmpeg_main_thread(void *main_args_void_ptr)
     g_id = id;
 
     setup_options();
-
-    lock();
-
-    add_to_array(&g_running_ids, &g_running_ids_count, id);
-
-    unlock();
 
     if (file_path != NULL) {
         g_log_output_file_pointer = fopen(file_path, "w");

@@ -4,7 +4,8 @@ ffmpeg: LGPLv2.1
 Copyright (c) 2000-2021 the FFmpeg developers
 
 openh264: BSD 2-Clause
-Copyright (c) 2013, Cisco Systems
+Copyright © 2014 Cisco Systems, Inc.
+(NOTE: Please check for Patent: http://www.openh264.org/BINARY_LICENSE.txt)
 
 libvpx: BSD 3-Clause
 Copyright (c) 2010, The WebM Project authors. All rights reserved.
@@ -61,3 +62,6 @@ lame: LGPLv2
  Copyright (C) 1991 Free Software Foundation, Inc.
     		    59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 (www.mp3dev.org)
+
+libxml2: MIT License
+ Copyright (C) 1998-2012 Daniel Veillard.  All Rights Reserved.

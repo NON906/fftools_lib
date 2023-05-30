@@ -48,6 +48,7 @@ else(WIN32)
   include_directories( FFmpeg )
   include_directories( linux/include )
   include_directories( /usr/include )
+  include_directories( win/SDL2-2.24.1/include )
 
   add_library( ffmpegDll
                SHARED
@@ -57,22 +58,24 @@ else(WIN32)
   target_link_libraries( ffmpegDll
                          avdevice avfilter avformat swresample swscale avcodec avutil
                          mp3lame aom gif gmp gnutls gnutlsxx hogweed lilv-0 ltdl nettle openh264 opus pcre pcrecpp pcreposix serd-0 sord-0 sratom-0
-                         theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webpdecoder webpdemux webpmux webp yasm z
+                         theora theoradec theoraenc vorbis vorbisenc vorbisfile vpx webpdecoder webpdemux webpmux webp yasm xml2 z
                          #sndio
-                         ogg lzma
-                         Xv stdc++ dl mvec m c
-                         xcb-shm xcb )
+                         ogg
+                         #lzma Xv
+                         stdc++ dl mvec m c
+                         #xcb-shm
+                         xcb )
 
-  find_package(ALSA REQUIRED)
-  if (ALSA_FOUND)
-      include_directories(${ALSA_INCLUDE_DIRS})
-      target_link_libraries (ffmpegDll ${ALSA_LIBRARIES})
-  endif(ALSA_FOUND)
+  #find_package(ALSA REQUIRED)
+  #if (ALSA_FOUND)
+  #    include_directories(${ALSA_INCLUDE_DIRS})
+  #    target_link_libraries (ffmpegDll ${ALSA_LIBRARIES})
+  #endif(ALSA_FOUND)
 
-  find_package(SDL2 REQUIRED)
-  if (SDL2_FOUND)
-      include_directories(${SDL2_INCLUDE_DIRS})
-  #    target_link_libraries(ffmpegDll ${SDL2_LIBRARIES})
-  endif(SDL2_FOUND)
+  #find_package(SDL2 REQUIRED)
+  #if (SDL2_FOUND)
+  #    include_directories(${SDL2_INCLUDE_DIRS})
+  ##    target_link_libraries(ffmpegDll ${SDL2_LIBRARIES})
+  #endif(SDL2_FOUND)
 
 endif(WIN32)

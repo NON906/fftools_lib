@@ -64,7 +64,8 @@ else(WIN32)
                          #lzma Xv
                          stdc++ dl mvec m c
                          #xcb-shm
-                         xcb )
+                         #xcb
+                         )
 
   #find_package(ALSA REQUIRED)
   #if (ALSA_FOUND)

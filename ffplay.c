@@ -2653,7 +2653,11 @@ static int video_thread(void *arg)
             tb = av_buffersink_get_time_base(filt_out);
 #endif
             duration = (frame_rate.num && frame_rate.den ? av_q2d((AVRational){frame_rate.den, frame_rate.num}) : 0);
+#ifdef _WIN32
+            pts = (frame->pts == AV_NOPTS_VALUE) ? 0.0 : frame->pts * av_q2d(tb);
+#else
             pts = (frame->pts == AV_NOPTS_VALUE) ? NAN : frame->pts * av_q2d(tb);
+#endif
             ret = queue_picture(is, frame, pts, duration, frame->pkt_pos, is->viddec.pkt_serial);
             av_frame_unref(frame);
 #if CONFIG_AVFILTER

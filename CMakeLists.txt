@@ -19,7 +19,7 @@ if(WIN32)
                ffmpeg_mux.c opt_common.c )
 
   target_link_libraries( ffmpegDll
-                         avcodec-59 avdevice-59 avfilter-8 avformat-59 avutil-57 swresample-4 swscale-6
+                         avcodec-60 avdevice-60 avfilter-9 avformat-60 avutil-58 swresample-4 swscale-7
                          #SDL2
                          -static-libgcc -static-libstdc++)
 

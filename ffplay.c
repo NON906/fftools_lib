@@ -25,12 +25,12 @@
 
 #ifdef _WIN32
 #define DLL_EXPORT __declspec(dllexport)
+#define THREAD_LOCAL __thread
 #else
 #define DLL_EXPORT 
+#define THREAD_LOCAL
 #endif
 
-//#define THREAD_LOCAL __thread
-#define THREAD_LOCAL
 #define THREAD_LOCAL_MUST __thread
 #include <stdatomic.h>
 #include "libavutil/thread.h"
@@ -350,9 +350,9 @@ static THREAD_LOCAL int screen_width  = 0;
 static THREAD_LOCAL int screen_height = 0;
 static THREAD_LOCAL int screen_left = SDL_WINDOWPOS_CENTERED;
 static THREAD_LOCAL int screen_top = SDL_WINDOWPOS_CENTERED;
-static THREAD_LOCAL_MUST int audio_disable;
-static THREAD_LOCAL_MUST int video_disable;
-static THREAD_LOCAL_MUST int subtitle_disable;
+static THREAD_LOCAL int audio_disable;
+static THREAD_LOCAL int video_disable;
+static THREAD_LOCAL int subtitle_disable;
 static THREAD_LOCAL const char* wanted_stream_spec[AVMEDIA_TYPE_NB] = {0};
 static THREAD_LOCAL int seek_by_bytes = -1;
 static THREAD_LOCAL float seek_interval = 10;

@@ -30,7 +30,7 @@
 #endif
 
 #define THREAD_LOCAL
-#define THREAD_LOCAL_PARAM __thread
+#define THREAD_LOCAL_PARAM
 #define THREAD_LOCAL_MUST __thread
 #include <stdatomic.h>
 #include "libavutil/thread.h"
@@ -2795,7 +2795,7 @@ static int audio_decode_frame(VideoState *is)
         return -1;
 
     do {
-#if 1//defined(_WIN32)
+#if 0//defined(_WIN32)
         while (frame_queue_nb_remaining(&is->sampq) == 0) {
             if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2) {
                 if (unity_reset_audio) {
@@ -2804,6 +2804,10 @@ static int audio_decode_frame(VideoState *is)
                 return -1;
             }
             av_usleep (1000);
+        }
+#elif 1//defined(_WIN32)
+        if (frame_queue_nb_remaining(&is->sampq) == 0) {
+            return -1;
         }
 #endif
         if (!(af = frame_queue_peek_readable(&is->sampq))) {
@@ -4564,6 +4568,10 @@ DLL_EXPORT int ffplay_start(int argc, char **argv, int id, const char *file_path
 
     int ret = *(int *)ret_ptr;
     av_freep(&ret_ptr);
+
+    audio_disable = 0;
+    video_disable = 0;
+    subtitle_disable = 0;
 
     return ret;
 }

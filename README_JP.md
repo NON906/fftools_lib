@@ -13,7 +13,7 @@ Windows側では「MSYS2 MinGW」が必要になるので、事前にインス�
 1. Linuxで[こちら](https://github.com/NON906/ffmpeg-windows-build-helpers)のリポジトリで以下を実行してください
 
 ```
-./cross_compile_ffmpeg.sh --build-ffmpeg-static=n --build-ffmpeg-shared=y --enable-gpl=n --ffmpeg-git-checkout-version=n5.1.1
+./cross_compile_ffmpeg.sh --build-ffmpeg-static=n --build-ffmpeg-shared=y --enable-gpl=n --ffmpeg-git-checkout-version=n5.1.3
 ```
 
 2. Windowsでこのリポジトリをクローンしてください

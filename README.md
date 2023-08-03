@@ -15,7 +15,7 @@ On Windows, "MSYS2 MinGW" is required, so please install it in advance.
 1. Run the following in [THIS repository](https://github.com/NON906/ffmpeg-windows-build-helpers) on Linux.
 
 ```
-./cross_compile_ffmpeg.sh --build-ffmpeg-static=n --build-ffmpeg-shared=y --enable-gpl=n --ffmpeg-git-checkout-version=n5.1.1
+./cross_compile_ffmpeg.sh --build-ffmpeg-static=n --build-ffmpeg-shared=y --enable-gpl=n --ffmpeg-git-checkout-version=n5.1.3
 ```
 
 2. Clone this repository on Windows.
